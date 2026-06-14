@@ -16,6 +16,7 @@ import {
 import useUserStore from '@/store/useUserStore';
 import useSceneStore from '@/store/useSceneStore';
 import useHouseStore from '@/store/useHouseStore';
+import useOperationLogStore from '@/store/useOperationLogStore';
 import type { UserRole } from '@/types';
 import { cn } from '@/lib/utils';
 
@@ -33,9 +34,11 @@ export default function TopNav() {
   const { currentUser, isAuthenticated, setCurrentUser } = useUserStore();
   const { viewMode, selectedBuildingId, selectedHouseId } = useSceneStore();
   const { getBuildingById, getHouseById } = useHouseStore();
+  const addLog = useOperationLogStore(s => s.addLog);
   const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [faceLoginOpen, setFaceLoginOpen] = useState(false);
+  const [faceLoginStage, setFaceLoginStage] = useState<'scanning' | 'success'>('scanning');
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -85,6 +88,18 @@ export default function TopNav() {
   const currentRoleConfig = currentUser ? roleConfig[currentUser.role] : null;
   const RoleIcon = currentRoleConfig?.icon || User;
 
+  useEffect(() => {
+    if (faceLoginOpen && faceLoginStage === 'scanning' && currentUser) {
+      const timer = setTimeout(() => {
+        setFaceLoginStage('success');
+        addLog('face_login', currentUser.id, currentUser.name, currentUser.role,
+          `人脸识别登录成功`,
+          '登录成功');
+      }, 2500);
+      return () => clearTimeout(timer);
+    }
+  }, [faceLoginOpen, faceLoginStage, currentUser, addLog]);
+
   const handleRoleSwitch = (role: UserRole) => {
     const mockUsers: Record<UserRole, { id: string; username: string; name: string; role: UserRole; phone: string }> = {
       tenant: { id: 'U001', username: 'tenant', name: '张三', role: 'tenant', phone: '13800138001' },
@@ -93,8 +108,14 @@ export default function TopNav() {
       district_director: { id: 'U004', username: 'district', name: '赵区长', role: 'district_director', phone: '13800138004' },
       city_director: { id: 'U005', username: 'city', name: '孙市长', role: 'city_director', phone: '13800138005' }
     };
-    setCurrentUser(mockUsers[role]);
+    const newUser = mockUsers[role];
+    const oldRoleLabel = currentUser ? roleConfig[currentUser.role].label : '未登录';
+    const newRoleLabel = roleConfig[role].label;
+    setCurrentUser(newUser);
     setRoleDropdownOpen(false);
+    addLog('role_switch', newUser.id, newUser.name, newUser.role,
+      `角色切换：从 ${oldRoleLabel} 切换为 ${newRoleLabel}`,
+      '切换成功');
   };
 
   return (
@@ -150,7 +171,10 @@ export default function TopNav() {
         </div>
 
         <button
-          onClick={() => setFaceLoginOpen(true)}
+          onClick={() => {
+            setFaceLoginStage('scanning');
+            setFaceLoginOpen(true);
+          }}
           className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 hover:border-purple-400/50 transition-all group"
         >
           <Camera className="w-4 h-4 text-purple-400 group-hover:scale-110 transition-transform" />
@@ -256,29 +280,47 @@ export default function TopNav() {
                 <div className="absolute inset-0 rounded-full border-2 border-cyan-400 animate-ping opacity-30" />
                 <div className="absolute inset-2 rounded-full border border-cyan-400/50" />
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-32 h-40 rounded-2xl border-2 border-cyan-400 relative overflow-hidden bg-slate-800/50">
+                  <div className={cn(
+                    'w-32 h-40 rounded-2xl border-2 relative overflow-hidden bg-slate-800/50',
+                    faceLoginStage === 'success' ? 'border-emerald-400' : 'border-cyan-400'
+                  )}>
                     <div className="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-cyan-400 rounded-tl" />
                     <div className="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-cyan-400 rounded-tr" />
                     <div className="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-cyan-400 rounded-bl" />
                     <div className="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-cyan-400 rounded-br" />
                     <div className="absolute inset-0 flex items-center justify-center">
-                      <Camera className="w-12 h-12 text-cyan-400 animate-breathing" />
+                      {faceLoginStage === 'success' ? (
+                        <UserCog className="w-12 h-12 text-emerald-400" />
+                      ) : (
+                        <Camera className="w-12 h-12 text-cyan-400 animate-breathing" />
+                      )}
                     </div>
                     <motion.div
-                      animate={{ y: ['0%', '100%', '0%'] }}
+                      animate={faceLoginStage === 'success' ? { opacity: 0 } : { y: ['0%', '100%', '0%'] }}
                       transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
                       className="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-cyan-400 to-transparent"
                     />
                   </div>
                 </div>
               </div>
-              <h3 className="text-lg font-bold text-white mb-2">人脸识别登录</h3>
-              <p className="text-sm text-slate-400 mb-6">请将面部置于识别框内...</p>
+              {faceLoginStage === 'scanning' ? (
+                <>
+                  <h3 className="text-lg font-bold text-white mb-2">人脸识别登录</h3>
+                  <p className="text-sm text-slate-400 mb-6">请将面部置于识别框内...</p>
+                </>
+              ) : (
+                <>
+                  <h3 className="text-lg font-bold text-emerald-400 mb-2">识别成功</h3>
+                  <p className="text-sm text-slate-300 mb-6">
+                    欢迎回来，{currentUser?.name || '用户'}
+                  </p>
+                </>
+              )}
               <button
                 onClick={() => setFaceLoginOpen(false)}
                 className="w-full py-2.5 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-medium hover:opacity-90 transition-opacity"
               >
-                取消
+                {faceLoginStage === 'scanning' ? '取消' : '确定'}
               </button>
             </motion.div>
           </motion.div>

@@ -24,6 +24,8 @@ import {
 import * as XLSX from 'xlsx';
 import useHouseStore from '@/store/useHouseStore';
 import useWarningStore from '@/store/useWarningStore';
+import useUserStore from '@/store/useUserStore';
+import useOperationLogStore from '@/store/useOperationLogStore';
 import { cn } from '@/lib/utils';
 
 type Quarter = 'Q1' | 'Q2' | 'Q3' | 'Q4';
@@ -61,6 +63,8 @@ const quarters: { value: Quarter; label: string; months: string[] }[] = [
 export default function ReportExport() {
   const { buildings, houses, tenants, repairOrders } = useHouseStore();
   const { warnings } = useWarningStore();
+  const { currentUser } = useUserStore();
+  const addLog = useOperationLogStore(s => s.addLog);
 
   const [selectedQuarter, setSelectedQuarter] = useState<Quarter>('Q2');
   const [selectedDistrict, setSelectedDistrict] = useState<string>('all');
@@ -87,12 +91,14 @@ export default function ReportExport() {
   const quarterMonths = quarterInfo.months;
   const quarterIndex = ['Q1', 'Q2', 'Q3', 'Q4'].indexOf(selectedQuarter);
 
-  const isDateInQuarter = (dateStr: string) => {
-    const month = dateStr.substring(5, 7);
-    return quarterMonths.includes(month);
-  };
-
   const buildingStats: BuildingStats[] = useMemo(() => {
+    const isDateInQuarter = (dateStr: string) => {
+      const month = dateStr.substring(5, 7);
+      return quarterMonths.includes(month);
+    };
+
+    const quarterFactor = 1 + (quarterIndex - 1.5) * 0.15;
+
     return filteredBuildings.map(building => {
       const buildingHouses = houses.filter(h => h.buildingId === building.id);
       const occupiedHouses = buildingHouses.filter(h => h.status !== 'available');
@@ -100,10 +106,11 @@ export default function ReportExport() {
       const overdueHouses = buildingHouses.filter(h => h.status === 'overdue_rent');
 
       const totalBase = buildingHouses.length;
-      const quarterFactor = 1 + (quarterIndex - 1.5) * 0.15;
+      const idHash = building.id.split('').reduce((sum, c) => sum + c.charCodeAt(0), 0);
+      const noise = (idHash % 20) / 100;
 
-      const availableCount = Math.max(0, Math.round(availableHouses.length * quarterFactor * (0.9 + Math.random() * 0.2)));
-      const overdueCount = Math.max(0, Math.min(Math.round(overdueHouses.length * quarterFactor * (0.8 + Math.random() * 0.4)), occupiedHouses.length));
+      const availableCount = Math.max(0, Math.round(availableHouses.length * quarterFactor * (0.9 + noise)));
+      const overdueCount = Math.max(0, Math.min(Math.round(overdueHouses.length * quarterFactor * (0.85 + noise * 0.3)), occupiedHouses.length));
 
       const buildingRepairs = repairOrders.filter(r => {
         if (r.buildingId !== building.id) return false;
@@ -274,6 +281,12 @@ export default function ReportExport() {
 
       const fileName = `保障性住房统计报表_2026${selectedQuarter}_${selectedDistrict === 'all' ? '全部' : selectedDistrict}_${new Date().getTime()}.xlsx`;
       XLSX.writeFile(wb, fileName);
+
+      if (currentUser) {
+        addLog('report_export', currentUser.id, currentUser.name, currentUser.role,
+          `导出报表：2026${selectedQuarter}，范围：${selectedDistrict === 'all' ? '全部行政区' : selectedDistrict}，楼栋${buildingStats.length}栋`,
+          '导出成功');
+      }
 
       setExportSuccess(true);
       setTimeout(() => setExportSuccess(false), 3000);

@@ -233,8 +233,17 @@ const useOperationLogStore = create<OperationLogState>((set, get) => ({
     return logs.filter((log) => {
       if (filter.action && log.action !== filter.action) return false;
       if (filter.operatorId && log.operatorId !== filter.operatorId) return false;
-      if (filter.startTime && log.timestamp < filter.startTime) return false;
-      if (filter.endTime && log.timestamp > filter.endTime) return false;
+
+      if (filter.startTime) {
+        const startDate = new Date(filter.startTime + 'T00:00:00.000Z');
+        const logDate = new Date(log.timestamp);
+        if (logDate < startDate) return false;
+      }
+      if (filter.endTime) {
+        const endDate = new Date(filter.endTime + 'T23:59:59.999Z');
+        const logDate = new Date(log.timestamp);
+        if (logDate > endDate) return false;
+      }
       return true;
     });
   },

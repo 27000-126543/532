@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useMemo } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import { DirectionalLight } from 'three';
@@ -7,6 +7,7 @@ import { StarryBackground } from './StarryBackground';
 import Effects from './Effects';
 import useHouseStore from '@/store/useHouseStore';
 import useSceneStore from '@/store/useSceneStore';
+import energyStats from '@/data/energyStats';
 
 function LightRig() {
   const directionalRef = useRef<DirectionalLight>(null);
@@ -62,6 +63,14 @@ function SceneContent() {
   const buildings = useHouseStore((state) => state.buildings);
   const { selectBuilding, selectedBuildingId } = useSceneStore();
 
+  const overBudgetMap = useMemo(() => {
+    const map = new Map<string, boolean>();
+    energyStats.forEach((stat: any) => {
+      map.set(stat.buildingId, stat.isOverBudget);
+    });
+    return map;
+  }, []);
+
   return (
     <>
       <LightRig />
@@ -74,6 +83,7 @@ function SceneContent() {
           building={building}
           position={[building.position.x, building.position.y, building.position.z]}
           isSelected={selectedBuildingId === building.id}
+          isOverBudget={overBudgetMap.get(building.id) || false}
           onClick={(b) => selectBuilding(b.id)}
         />
       ))}

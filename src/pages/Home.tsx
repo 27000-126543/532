@@ -1242,6 +1242,49 @@ function ApprovalCenter() {
               <h4 className="text-sm font-bold text-slate-300 mb-3 flex items-center gap-2">
                 <DollarSign className="w-4 h-4 text-amber-400" /> 补贴调整方案
               </h4>
+
+              <div className="mb-4 p-4 rounded-xl bg-gradient-to-r from-slate-800/50 to-amber-900/10 border border-amber-500/20">
+                <div className="text-[10px] text-amber-400 mb-3 font-medium flex items-center gap-1">
+                  <TrendingUp className="w-3 h-3" /> 收入变化详情
+                </div>
+                <div className="grid grid-cols-4 gap-3">
+                  <div className="text-center">
+                    <div className="text-[10px] text-slate-500 mb-1">原申报月收入</div>
+                    <div className="text-base font-bold text-white font-mono">
+                      ¥{Math.round(selectedTenant.monthlyIncome * 0.85).toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-[10px] text-slate-500 mb-1">当前核实月收入</div>
+                    <div className="text-base font-bold text-amber-300 font-mono">
+                      ¥{selectedTenant.monthlyIncome.toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-[10px] text-slate-500 mb-1">收入增减幅度</div>
+                    <div className={cn(
+                      'text-base font-bold font-mono flex items-center justify-center gap-1',
+                      selectedTenant.monthlyIncome > selectedTenant.monthlyIncome * 0.85 ? 'text-red-400' : 'text-emerald-400'
+                    )}>
+                      {selectedTenant.monthlyIncome > selectedTenant.monthlyIncome * 0.85 ? (
+                        <TrendingUp className="w-4 h-4" />
+                      ) : (
+                        <TrendingDown className="w-4 h-4" />
+                      )}
+                      {(((selectedTenant.monthlyIncome - selectedTenant.monthlyIncome * 0.85) / (selectedTenant.monthlyIncome * 0.85)) * 100).toFixed(1)}%
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-[10px] text-slate-500 mb-1">调整依据</div>
+                    <div className="text-[11px] text-slate-300 mt-0.5">
+                      {selectedTenant.monthlyIncome < 5000 ? '低于保障线' :
+                       selectedTenant.monthlyIncome < 8000 ? '接近保障线' :
+                       '超保障线'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <div className="grid grid-cols-3 gap-3 mb-3">
                 <div className="p-3 rounded-lg bg-slate-800/30 text-center">
                   <div className="text-[10px] text-slate-500 mb-1">原月租金</div>

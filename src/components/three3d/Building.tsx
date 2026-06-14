@@ -10,16 +10,18 @@ const statusColors: Record<string, string> = {
   sublet_warning: '#EF4444',
   available: '#34D399',
   overdue_rent: '#F97316',
+  energy_over_budget: '#FB923C',
 };
 
 interface BuildingProps {
   building: BuildingType;
   position: [number, number, number];
   isSelected: boolean;
+  isOverBudget?: boolean;
   onClick: (building: BuildingType) => void;
 }
 
-export function Building({ building, position, isSelected, onClick }: BuildingProps) {
+export function Building({ building, position, isSelected, isOverBudget = false, onClick }: BuildingProps) {
   const meshRef = useRef<Mesh>(null);
   const windowsRef = useRef<InstancedMesh>(null);
   const materialRef = useRef<MeshStandardMaterial>(null);
@@ -33,9 +35,10 @@ export function Building({ building, position, isSelected, onClick }: BuildingPr
     if (statuses.includes('sublet_warning')) return 'sublet_warning';
     if (statuses.includes('overdue_rent')) return 'overdue_rent';
     if (statuses.includes('vacant_warning')) return 'vacant_warning';
+    if (isOverBudget) return 'energy_over_budget';
     if (statuses.includes('available')) return 'available';
     return 'normal';
-  }, [buildingHouses]);
+  }, [buildingHouses, isOverBudget]);
 
   const isWarning = buildingStatus !== 'normal' && buildingStatus !== 'available';
   const borderColor = statusColors[buildingStatus] || statusColors.normal;
