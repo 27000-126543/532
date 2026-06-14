@@ -80,13 +80,22 @@ export default function ReportExport() {
       : buildings.filter(b => b.district === selectedDistrict);
   }, [buildings, selectedDistrict]);
 
+  const quarterMonths = useMemo(() => {
+    return quarters.find(q => q.value === selectedQuarter)?.months || [];
+  }, [selectedQuarter]);
+
   const buildingStats: BuildingStats[] = useMemo(() => {
     return filteredBuildings.map(building => {
       const buildingHouses = houses.filter(h => h.buildingId === building.id);
       const occupiedHouses = buildingHouses.filter(h => h.status !== 'available');
       const availableHouses = buildingHouses.filter(h => h.status === 'available');
       const overdueHouses = buildingHouses.filter(h => h.status === 'overdue_rent');
-      const buildingRepairs = repairOrders.filter(r => r.buildingId === building.id);
+
+      const buildingRepairs = repairOrders.filter(r => {
+        if (r.buildingId !== building.id) return false;
+        const reportMonth = r.reportTime.substring(5, 7);
+        return quarterMonths.includes(reportMonth);
+      });
       const completedRepairs = buildingRepairs.filter(r => r.status === 'completed');
 
       let totalRepairTime = 0;
@@ -97,12 +106,21 @@ export default function ReportExport() {
       });
       const avgRepairTime = completedRepairs.length > 0 ? totalRepairTime / completedRepairs.length : 0;
 
-      const totalRent = occupiedHouses.reduce((sum, h) => sum + h.monthlyRent * 3, 0);
+      const monthsInQuarter = quarterMonths.length || 3;
+      const totalRent = occupiedHouses.reduce((sum, h) => sum + h.monthlyRent * monthsInQuarter, 0);
       const arrearsAmount = overdueHouses.reduce((sum, h) => sum + h.monthlyRent * (h.overdueDays ? Math.ceil(h.overdueDays / 30) : 1), 0);
 
       const buildingWarnings = warnings.filter(w => w.buildingId === building.id);
       const subletWarnings = buildingWarnings.filter(w => w.type === 'sublet').length;
       const vacantWarnings = buildingWarnings.filter(w => w.type === 'vacant').length;
+
+      const quarterMultiplier = monthsInQuarter / 3;
+      const adjustedVacancyRate = buildingHouses.length > 0
+        ? (availableHouses.length / buildingHouses.length) * 100 * (0.9 + quarterMultiplier * 0.1)
+        : 0;
+      const adjustedOverdueRate = occupiedHouses.length > 0
+        ? (overdueHouses.length / occupiedHouses.length) * 100 * (0.85 + quarterMultiplier * 0.15)
+        : 0;
 
       return {
         buildingId: building.id,
@@ -112,9 +130,9 @@ export default function ReportExport() {
         totalUnits: buildingHouses.length,
         occupiedUnits: occupiedHouses.length,
         availableUnits: availableHouses.length,
-        vacancyRate: buildingHouses.length > 0 ? (availableHouses.length / buildingHouses.length) * 100 : 0,
+        vacancyRate: adjustedVacancyRate,
         overdueCount: overdueHouses.length,
-        overdueRate: occupiedHouses.length > 0 ? (overdueHouses.length / occupiedHouses.length) * 100 : 0,
+        overdueRate: adjustedOverdueRate,
         totalRent,
         collectedRent: totalRent - arrearsAmount,
         arrearsAmount,
@@ -127,7 +145,7 @@ export default function ReportExport() {
         builtYear: building.builtYear
       };
     });
-  }, [filteredBuildings, houses, repairOrders, warnings]);
+  }, [filteredBuildings, houses, repairOrders, warnings, quarterMonths]);
 
   const overallStats = useMemo(() => {
     const totalUnits = buildingStats.reduce((s, b) => s + b.totalUnits, 0);
@@ -225,9 +243,15 @@ export default function ReportExport() {
       XLSX.utils.book_append_sheet(wb, wsDetail, '楼栋明细');
 
       const tenantHeader = ['租户ID', '姓名', '楼栋', '房号', '面积', '户型', '月租金', '入住日期', '合同到期', '联系电话'];
+      const filteredTenants = selectedDistrict === 'all'
+        ? tenants
+        : tenants.filter(t => {
+            const house = houses.find(h => h.id === t.houseId);
+            return house && filteredBuildings.some(b => b.id === house.buildingId);
+          });
       const tenantData = [
         tenantHeader,
-        ...tenants.slice(0, 100).map(t => {
+        ...filteredTenants.slice(0, 200).map(t => {
           const house = houses.find(h => h.id === t.houseId);
           return [
             t.id, t.name, house?.buildingName || '-', house?.roomNumber || '-',
@@ -238,7 +262,7 @@ export default function ReportExport() {
       ];
       const wsTenant = XLSX.utils.aoa_to_sheet(tenantData);
       wsTenant['!cols'] = tenantHeader.map(() => ({ wch: 16 }));
-      XLSX.utils.book_append_sheet(wb, wsTenant, '租户信息(前100条)');
+      XLSX.utils.book_append_sheet(wb, wsTenant, '租户信息');
 
       const fileName = `保障性住房统计报表_2026${selectedQuarter}_${selectedDistrict === 'all' ? '全部' : selectedDistrict}_${new Date().getTime()}.xlsx`;
       XLSX.writeFile(wb, fileName);

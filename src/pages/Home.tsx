@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard,
@@ -15,6 +15,7 @@ import {
   Users,
   DollarSign,
   TrendingUp,
+  TrendingDown,
   User,
   Phone,
   MapPin,
@@ -28,7 +29,20 @@ import {
   Thermometer,
   Droplets,
   Flame,
-  Layers
+  Layers,
+  CheckCircle2,
+  XCircle,
+  ArrowRight,
+  Search,
+  Filter,
+  Clock,
+  Download,
+  LogOut,
+  ScanFace,
+  FileText,
+  BarChart3,
+  ArrowUpRight,
+  ChevronDown
 } from 'lucide-react';
 import TopNav from '@/components/layout/TopNav';
 import CommunityScene from '@/components/three3d/CommunityScene';
@@ -41,7 +55,10 @@ import useSceneStore from '@/store/useSceneStore';
 import useHouseStore from '@/store/useHouseStore';
 import useUserStore from '@/store/useUserStore';
 import useWarningStore from '@/store/useWarningStore';
-import type { UserRole, House } from '@/types';
+import useApprovalStore from '@/store/useApprovalStore';
+import useOperationLogStore from '@/store/useOperationLogStore';
+import energyStatsData from '@/data/energyStats';
+import type { UserRole, House, ApprovalStage, ApprovalStatus } from '@/types';
 import { cn } from '@/lib/utils';
 
 type MenuKey = 'overview' | 'approval' | 'lottery' | 'repair' | 'energy' | 'warning' | 'report' | 'logs';
@@ -662,46 +679,273 @@ function ViewModeBadge() {
 }
 
 function EnergyManagement() {
+  const { buildings } = useHouseStore();
+  const energyStats = useMemo(() => energyStatsData, []);
+  const [selectedBuildingId, setSelectedBuildingId] = useState<string | null>(null);
+
+  const selectedStat = useMemo(
+    () => energyStats.find((s: any) => s.buildingId === selectedBuildingId),
+    [energyStats, selectedBuildingId]
+  );
+
+  const energySuggestions: Record<string, string[]> = {
+    electricity: [
+      '建议将公共区域照明更换为LED节能灯，预计节电30%',
+      '优化电梯运行策略，非高峰时段减少运行台数',
+      '安装光照传感器，白天自动降低楼道照明亮度'
+    ],
+    water: [
+      '检查各楼层卫生间冲水装置，更换节水型阀件',
+      '排查地下管网漏水点，建议进行水压测试',
+      '安装感应式水龙头，减少公共区域水资源浪费'
+    ],
+    gas: [
+      '建议对燃气管道进行年检，排查泄漏隐患',
+      '优化锅炉运行参数，提升热效率降低气耗',
+      '安装燃气流量计实现分户计量精细管理'
+    ]
+  };
+
   return (
-    <div className="w-full h-full p-8 flex items-center justify-center">
-      <div className="text-center">
-        <Zap className="w-20 h-20 text-yellow-400 mx-auto mb-6 opacity-30" />
-        <h2 className="text-2xl font-bold text-white mb-2">能耗管理模块</h2>
-        <p className="text-slate-400 mb-4">水电气能耗实时监控 · 预算对比分析</p>
-        <div className="flex items-center justify-center gap-8 mt-8">
-          <div className="flex items-center gap-3 px-6 py-4 rounded-xl bg-yellow-500/10 border border-yellow-500/20">
-            <Zap className="w-8 h-8 text-yellow-400" />
-            <div className="text-left">
-              <div className="text-xs text-slate-400">本月用电</div>
-              <div className="text-xl font-bold text-yellow-300 font-mono">58,420 kWh</div>
-            </div>
-          </div>
-          <div className="flex items-center gap-3 px-6 py-4 rounded-xl bg-blue-500/10 border border-blue-500/20">
-            <Droplets className="w-8 h-8 text-blue-400" />
-            <div className="text-left">
-              <div className="text-xs text-slate-400">本月用水</div>
-              <div className="text-xl font-bold text-blue-300 font-mono">9,856 吨</div>
-            </div>
-          </div>
-          <div className="flex items-center gap-3 px-6 py-4 rounded-xl bg-orange-500/10 border border-orange-500/20">
-            <Flame className="w-8 h-8 text-orange-400" />
-            <div className="text-left">
-              <div className="text-xs text-slate-400">本月用气</div>
-              <div className="text-xl font-bold text-orange-300 font-mono">4,230 m³</div>
-            </div>
-          </div>
+    <div className="w-full h-full bg-gradient-to-br from-slate-950 via-amber-950/10 to-slate-950 p-6 overflow-y-auto scrollbar-thin">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+            <Zap className="w-7 h-7 text-amber-400" />
+            能耗管理
+          </h2>
+          <p className="text-sm text-slate-400 mt-1 ml-10">按楼栋监控水电气能耗 · 预算对比 · 节能建议</p>
         </div>
       </div>
+
+      <div className="grid grid-cols-6 gap-3 mb-6">
+        {energyStats.map((stat: any) => {
+          const isOver = stat.isOverBudget;
+          const isSelected = selectedBuildingId === stat.buildingId;
+          return (
+            <motion.button
+              key={stat.buildingId}
+              whileHover={{ scale: 1.03, y: -2 }}
+              onClick={() => setSelectedBuildingId(isSelected ? null : stat.buildingId)}
+              className={cn(
+                'glass-panel p-4 text-left transition-all relative overflow-hidden',
+                isSelected && 'ring-2 ring-cyan-400/50',
+                isOver && !isSelected && 'ring-1 ring-orange-500/40'
+              )}
+            >
+              {isOver && (
+                <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+              )}
+              <div className="text-xs text-slate-400 mb-1 truncate">{stat.buildingName}</div>
+              <div className={cn('text-lg font-bold font-mono', isOver ? 'text-orange-400' : 'text-cyan-300')}>
+                {((stat.totalElectricity + stat.totalWater + stat.totalGas) / 1000).toFixed(1)}
+                <span className="text-xs text-slate-500 ml-1">k</span>
+              </div>
+              <div className="text-[10px] text-slate-500 mt-1">
+                {isOver ? `超支: ${stat.overBudgetItems.map((i: string) => i === 'electricity' ? '电' : i === 'water' ? '水' : '气').join('/')}` : '预算内'}
+              </div>
+            </motion.button>
+          );
+        })}
+      </div>
+
+      {selectedStat && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="space-y-4"
+        >
+          <div className="glass-panel p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <Building2 className="w-5 h-5 text-cyan-400" />
+                {selectedStat.buildingName} 能耗详情
+              </h3>
+              {selectedStat.isOverBudget && (
+                <span className="px-3 py-1 rounded-full bg-orange-500/15 text-orange-400 text-xs font-medium border border-orange-500/30 animate-pulse">
+                  预算超标
+                </span>
+              )}
+            </div>
+
+            <div className="grid grid-cols-3 gap-4 mb-6">
+              {[
+                { key: 'electricity', label: '用电', unit: 'kWh', icon: Zap, color: 'amber', data: selectedStat.totalElectricity, budget: selectedStat.totalElectricityBudget },
+                { key: 'water', label: '用水', unit: '吨', icon: Droplets, color: 'blue', data: selectedStat.totalWater, budget: selectedStat.totalWaterBudget },
+                { key: 'gas', label: '用气', unit: 'm³', icon: Flame, color: 'orange', data: selectedStat.totalGas, budget: selectedStat.totalGasBudget }
+              ].map(item => {
+                const Icon = item.icon;
+                const isOver = item.data > item.budget;
+                const ratio = item.budget > 0 ? ((item.data / item.budget) * 100) : 0;
+                return (
+                  <div key={item.key} className={cn(
+                    'p-4 rounded-xl border',
+                    isOver ? 'bg-orange-500/5 border-orange-500/30' : 'bg-slate-800/30 border-slate-700/30'
+                  )}>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <Icon className={cn('w-5 h-5', `text-${item.color}-400`)} />
+                        <span className="text-sm text-slate-300">{item.label}</span>
+                      </div>
+                      {isOver && (
+                        <span className="px-2 py-0.5 rounded text-[10px] bg-red-500/15 text-red-400 font-medium">
+                          超预算
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-baseline gap-1 mb-1">
+                      <span className={cn('text-2xl font-bold font-mono', isOver ? 'text-orange-400' : `text-${item.color}-300`)}>
+                        {item.data.toLocaleString()}
+                      </span>
+                      <span className="text-xs text-slate-500">{item.unit}</span>
+                    </div>
+                    <div className="text-xs text-slate-500 mb-2">
+                      预算: {item.budget.toLocaleString()} {item.unit}
+                    </div>
+                    <div className="w-full h-2 rounded-full bg-slate-700/50 overflow-hidden">
+                      <div
+                        className={cn('h-full rounded-full transition-all', isOver ? 'bg-red-400' : `bg-${item.color}-400`)}
+                        style={{ width: `${Math.min(ratio, 100)}%` }}
+                      />
+                    </div>
+                    <div className="text-[10px] text-slate-500 mt-1 text-right">
+                      {ratio.toFixed(1)}%
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="mb-4">
+              <h4 className="text-sm font-medium text-slate-300 mb-3">月度趋势</h4>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-slate-800/40">
+                      <th className="px-3 py-2 text-left text-xs text-slate-400">月份</th>
+                      <th className="px-3 py-2 text-center text-xs text-amber-400">用电(kWh)</th>
+                      <th className="px-3 py-2 text-center text-xs text-slate-500">预算</th>
+                      <th className="px-3 py-2 text-center text-xs text-blue-400">用水(吨)</th>
+                      <th className="px-3 py-2 text-center text-xs text-slate-500">预算</th>
+                      <th className="px-3 py-2 text-center text-xs text-orange-400">用气(m³)</th>
+                      <th className="px-3 py-2 text-center text-xs text-slate-500">预算</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-700/20">
+                    {selectedStat.months.map((m: any) => (
+                      <tr key={m.month} className="hover:bg-slate-800/20">
+                        <td className="px-3 py-2 text-slate-300">{m.month}</td>
+                        <td className={cn('px-3 py-2 text-center font-mono', m.electricity > m.electricityBudget ? 'text-orange-400' : 'text-amber-300')}>
+                          {m.electricity.toLocaleString()}
+                        </td>
+                        <td className="px-3 py-2 text-center font-mono text-slate-500">{m.electricityBudget.toLocaleString()}</td>
+                        <td className={cn('px-3 py-2 text-center font-mono', m.water > m.waterBudget ? 'text-orange-400' : 'text-blue-300')}>
+                          {m.water.toLocaleString()}
+                        </td>
+                        <td className="px-3 py-2 text-center font-mono text-slate-500">{m.waterBudget.toLocaleString()}</td>
+                        <td className={cn('px-3 py-2 text-center font-mono', m.gas > m.gasBudget ? 'text-orange-400' : 'text-orange-300')}>
+                          {m.gas.toLocaleString()}
+                        </td>
+                        <td className="px-3 py-2 text-center font-mono text-slate-500">{m.gasBudget.toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          {selectedStat.isOverBudget && (
+            <div className="glass-panel p-5 border-orange-500/30">
+              <h4 className="text-sm font-bold text-orange-400 mb-3 flex items-center gap-2">
+                <Thermometer className="w-4 h-4" /> 节能建议
+              </h4>
+              <div className="space-y-3">
+                {selectedStat.overBudgetItems.map((item: string) => (
+                  <div key={item} className="p-3 rounded-lg bg-orange-500/5 border border-orange-500/15">
+                    <div className="text-xs text-orange-400 font-medium mb-2">
+                      {item === 'electricity' ? '⚡ 用电超标' : item === 'water' ? '💧 用水超标' : '🔥 用气超标'}
+                    </div>
+                    <ul className="space-y-1.5">
+                      {(energySuggestions[item] || []).map((suggestion, idx) => (
+                        <li key={idx} className="text-sm text-slate-300 flex items-start gap-2">
+                          <span className="text-orange-400 mt-0.5">•</span>
+                          {suggestion}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </motion.div>
+      )}
+
+      {!selectedStat && (
+        <div className="glass-panel p-5">
+          <h3 className="text-sm font-medium text-slate-300 mb-4">全部楼栋能耗概览</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-slate-800/40">
+                  <th className="px-4 py-3 text-left text-xs text-slate-400">楼栋</th>
+                  <th className="px-4 py-3 text-center text-xs text-amber-400">用电(kWh)</th>
+                  <th className="px-4 py-3 text-center text-xs text-blue-400">用水(吨)</th>
+                  <th className="px-4 py-3 text-center text-xs text-orange-400">用气(m³)</th>
+                  <th className="px-4 py-3 text-center text-xs text-slate-400">预算状态</th>
+                  <th className="px-4 py-3 text-center text-xs text-slate-400">超支项</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-700/20">
+                {energyStats.map((stat: any) => (
+                  <motion.tr
+                    key={stat.buildingId}
+                    whileHover={{ backgroundColor: 'rgba(6,182,212,0.05)' }}
+                    onClick={() => setSelectedBuildingId(stat.buildingId)}
+                    className="cursor-pointer"
+                  >
+                    <td className="px-4 py-3">
+                      <div className="font-medium text-white">{stat.buildingName}</div>
+                    </td>
+                    <td className="px-4 py-3 text-center font-mono text-amber-300">{stat.totalElectricity.toLocaleString()}</td>
+                    <td className="px-4 py-3 text-center font-mono text-blue-300">{stat.totalWater.toLocaleString()}</td>
+                    <td className="px-4 py-3 text-center font-mono text-orange-300">{stat.totalGas.toLocaleString()}</td>
+                    <td className="px-4 py-3 text-center">
+                      {stat.isOverBudget ? (
+                        <span className="px-2 py-0.5 rounded-full bg-orange-500/15 text-orange-400 text-xs">超标</span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 text-xs">正常</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-center text-xs text-slate-400">
+                      {stat.overBudgetItems.length > 0
+                        ? stat.overBudgetItems.map((i: string) => i === 'electricity' ? '电' : i === 'water' ? '水' : '气').join('、')
+                        : '-'}
+                    </td>
+                  </motion.tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function WarningCenter() {
+function WarningCenter({ onNavigateToHouse }: { onNavigateToHouse: (houseId: string) => void }) {
   const { warnings, acknowledgeWarning } = useWarningStore();
   const { currentUser } = useUserStore();
+  const { getTenantByHouseId } = useHouseStore();
   const [filter, setFilter] = useState<'all' | 'vacant' | 'sublet'>('all');
 
   const filteredWarnings = filter === 'all' ? warnings : warnings.filter(w => w.type === filter);
+
+  const getTenantName = useCallback((houseId: string) => {
+    const tenant = getTenantByHouseId(houseId);
+    return tenant?.name || '未知';
+  }, [getTenantByHouseId]);
 
   return (
     <div className="w-full h-full p-6 overflow-y-auto scrollbar-thin">
@@ -765,31 +1009,31 @@ function WarningCenter() {
                   <div className="text-xs text-slate-500 flex items-center gap-2">
                     <span>{w.type === 'vacant' ? '空置预警' : '转租预警'}</span>
                     <span>·</span>
-                    <span>
-                      级别:
-                      <span className={cn(
-                        'ml-1 font-bold',
-                        w.level === 'high' ? 'text-red-400' : w.level === 'medium' ? 'text-amber-400' : 'text-yellow-400'
-                      )}>
-                        {w.level === 'high' ? '高' : w.level === 'medium' ? '中' : '低'}
-                      </span>
-                    </span>
+                    <span>住户: <span className="text-cyan-300">{getTenantName(w.houseId)}</span></span>
                   </div>
                 </div>
               </div>
-              {!w.acknowledged && (
+              <div className="flex items-center gap-2">
                 <button
-                  onClick={() => currentUser && acknowledgeWarning(w.id, currentUser.id)}
-                  className="px-3 py-1.5 rounded-lg text-xs bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-medium hover:opacity-90 transition-opacity"
+                  onClick={() => onNavigateToHouse(w.houseId)}
+                  className="px-2 py-1 rounded-lg text-[10px] bg-slate-700/50 border border-slate-600/30 text-slate-300 hover:text-white hover:border-cyan-400/40 transition-all"
                 >
-                  处理
+                  查看房屋
                 </button>
-              )}
-              {w.acknowledged && (
-                <span className="px-3 py-1.5 rounded-lg text-xs bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
-                  已处理
-                </span>
-              )}
+                {!w.acknowledged && (
+                  <button
+                    onClick={() => currentUser && acknowledgeWarning(w.id, currentUser.id)}
+                    className="px-3 py-1.5 rounded-lg text-xs bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-medium hover:opacity-90 transition-opacity"
+                  >
+                    处理
+                  </button>
+                )}
+                {w.acknowledged && (
+                  <span className="px-3 py-1.5 rounded-lg text-xs bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
+                    已处理
+                  </span>
+                )}
+              </div>
             </div>
             <p className="text-sm text-slate-300 mb-3">{w.description}</p>
             <div className="text-xs text-slate-500 flex items-center gap-1">
@@ -804,47 +1048,514 @@ function WarningCenter() {
 }
 
 function ApprovalCenter() {
+  const { approvals, approveAtStage, rejectAtStage, getPendingCount, getCompletedCount, getRejectedCount } = useApprovalStore();
+  const { tenants, getTenantById, getHouseById } = useHouseStore();
+  const { currentUser } = useUserStore();
+  const addLog = useOperationLogStore(s => s.addLog);
+  const [statusFilter, setStatusFilter] = useState<ApprovalStatus | 'all'>('all');
+  const [selectedApprovalId, setSelectedApprovalId] = useState<string | null>(null);
+  const [opinionText, setOpinionText] = useState('');
+  const [rejectMode, setRejectMode] = useState(false);
+
+  const filteredApprovals = useMemo(() => {
+    if (statusFilter === 'all') return approvals;
+    return approvals.filter(a => a.status === statusFilter);
+  }, [approvals, statusFilter]);
+
+  const selectedApproval = useMemo(
+    () => approvals.find(a => a.id === selectedApprovalId),
+    [approvals, selectedApprovalId]
+  );
+
+  const selectedTenant = useMemo(
+    () => selectedApproval ? getTenantById(selectedApproval.tenantId) : undefined,
+    [selectedApproval, getTenantById]
+  );
+
+  const selectedHouse = useMemo(
+    () => selectedApproval ? getHouseById(selectedApproval.houseId) : undefined,
+    [selectedApproval, getHouseById]
+  );
+
+  const stageLabels: Record<ApprovalStage, string> = { street: '街道初审', district: '区住建复核', city: '市住建终审' };
+  const stageOrder: ApprovalStage[] = ['street', 'district', 'city'];
+
+  const handleApprove = useCallback(() => {
+    if (!selectedApproval || !currentUser) return;
+    const result = approveAtStage(selectedApproval.id, selectedApproval.currentStage, currentUser.name, opinionText || '同意');
+    if (result) {
+      addLog('approval_approve', currentUser.id, currentUser.name, currentUser.role,
+        `${stageLabels[selectedApproval.currentStage]}通过：${selectedApproval.tenantName}的${selectedApproval.applyType}`,
+        '审批通过', selectedApproval.id, selectedApproval.applyType);
+      setOpinionText('');
+      setRejectMode(false);
+    }
+  }, [selectedApproval, currentUser, approveAtStage, addLog, opinionText]);
+
+  const handleReject = useCallback(() => {
+    if (!selectedApproval || !currentUser || !opinionText.trim()) return;
+    const result = rejectAtStage(selectedApproval.id, selectedApproval.currentStage, currentUser.name, opinionText);
+    if (result) {
+      addLog('approval_reject', currentUser.id, currentUser.name, currentUser.role,
+        `${stageLabels[selectedApproval.currentStage]}驳回：${selectedApproval.tenantName}的${selectedApproval.applyType}，原因：${opinionText}`,
+        '审批驳回', selectedApproval.id, selectedApproval.applyType);
+      setOpinionText('');
+      setRejectMode(false);
+    }
+  }, [selectedApproval, currentUser, rejectAtStage, addLog, opinionText]);
+
+  const getStatusBadge = (status: ApprovalStatus) => {
+    const map: Record<ApprovalStatus, { label: string; cls: string }> = {
+      pending: { label: '待审批', cls: 'bg-amber-500/15 text-amber-300 border-amber-500/30' },
+      approved: { label: '已通过', cls: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' },
+      rejected: { label: '已驳回', cls: 'bg-red-500/15 text-red-300 border-red-500/30' },
+      completed: { label: '已完成', cls: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30' }
+    };
+    const cfg = map[status];
+    return <span className={cn('px-2 py-0.5 rounded-full text-xs border', cfg.cls)}>{cfg.label}</span>;
+  };
+
+  const getStageProgress = (approval: typeof approvals[0]) => {
+    const currentIdx = stageOrder.indexOf(approval.currentStage);
+    return stageOrder.map((stage, idx) => {
+      let state: 'done' | 'current' | 'pending' = 'pending';
+      if (approval.status === 'rejected') {
+        if (idx < currentIdx) state = 'done';
+        else if (idx === currentIdx) state = 'current';
+      } else if (approval.status === 'completed') {
+        state = 'done';
+      } else {
+        if (idx < currentIdx) state = 'done';
+        else if (idx === currentIdx) state = 'current';
+      }
+      return { stage, label: stageLabels[stage], state };
+    });
+  };
+
   return (
-    <div className="w-full h-full p-8 flex items-center justify-center">
-      <div className="text-center">
-        <FileCheck2 className="w-20 h-20 text-amber-400 mx-auto mb-6 opacity-30" />
-        <h2 className="text-2xl font-bold text-white mb-2">审批中心</h2>
-        <p className="text-slate-400">五级审批流程 · 街道/区局/市局逐级审核</p>
-        <div className="flex items-center justify-center gap-4 mt-10">
-          {['街道受理', '区局审批', '市局复核', '办结'].map((step, idx) => (
-            <div key={step} className="flex items-center gap-4">
-              <div className="flex flex-col items-center">
-                <div className={cn(
-                  'w-14 h-14 rounded-full flex items-center justify-center text-lg font-bold',
-                  idx < 2
-                    ? 'bg-gradient-to-br from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/30'
-                    : 'bg-slate-800/50 border-2 border-slate-700 text-slate-500'
-                )}>
-                  {idx + 1}
-                </div>
-                <div className="mt-2 text-sm text-white">{step}</div>
-              </div>
-              {idx < 3 && (
-                <div className={cn(
-                  'w-20 h-1 rounded-full',
-                  idx < 1 ? 'bg-gradient-to-r from-amber-500 to-orange-500' : 'bg-slate-700'
-                )} />
+    <div className="w-full h-full bg-gradient-to-br from-slate-950 via-amber-950/10 to-slate-950 flex overflow-hidden">
+      <div className="w-[420px] border-r border-slate-700/30 flex flex-col">
+        <div className="p-4 border-b border-slate-700/30">
+          <h2 className="text-xl font-bold text-white flex items-center gap-2 mb-3">
+            <FileCheck2 className="w-6 h-6 text-amber-400" />
+            审批中心
+          </h2>
+          <div className="flex gap-1.5">
+            {(['all', 'pending', 'approved', 'rejected', 'completed'] as const).map(s => (
+              <button
+                key={s}
+                onClick={() => setStatusFilter(s)}
+                className={cn(
+                  'px-3 py-1.5 rounded-lg text-xs transition-all',
+                  statusFilter === s
+                    ? 'bg-amber-500/20 border border-amber-400/30 text-amber-300'
+                    : 'bg-slate-800/30 border border-slate-700/30 text-slate-400 hover:text-white'
+                )}
+              >
+                {s === 'all' ? `全部(${approvals.length})` :
+                 s === 'pending' ? `待审(${getPendingCount()})` :
+                 s === 'completed' ? `完成(${getCompletedCount()})` :
+                 s === 'rejected' ? `驳回(${getRejectedCount()})` : `通过(${approvals.filter(a => a.status === 'approved').length})`}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto scrollbar-thin p-3 space-y-2">
+          {filteredApprovals.map(a => (
+            <motion.button
+              key={a.id}
+              whileHover={{ x: 4 }}
+              onClick={() => { setSelectedApprovalId(a.id); setOpinionText(''); setRejectMode(false); }}
+              className={cn(
+                'w-full p-3 rounded-xl text-left transition-all',
+                selectedApprovalId === a.id
+                  ? 'bg-amber-500/10 border border-amber-400/30'
+                  : 'bg-slate-800/20 border border-slate-700/20 hover:bg-slate-800/40'
               )}
-            </div>
+            >
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-sm font-bold text-white">{a.tenantName}</span>
+                {getStatusBadge(a.status)}
+              </div>
+              <div className="text-xs text-slate-400 flex items-center gap-2">
+                <span>{a.buildingName} {a.roomNumber}</span>
+                <span>·</span>
+                <span>{a.applyType}</span>
+              </div>
+              <div className="text-xs text-slate-500 mt-1 flex items-center gap-2">
+                <span>当前: {stageLabels[a.currentStage]}</span>
+                <span>·</span>
+                <span>申请金额: ¥{a.applyAmount}</span>
+              </div>
+            </motion.button>
           ))}
         </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto scrollbar-thin p-6">
+        {selectedApproval && selectedTenant ? (
+          <div className="space-y-5">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold text-white">
+                审批详情 - {selectedApproval.id}
+              </h3>
+              {getStatusBadge(selectedApproval.status)}
+            </div>
+
+            <div className="glass-panel p-5">
+              <h4 className="text-sm font-bold text-slate-300 mb-3 flex items-center gap-2">
+                <Users className="w-4 h-4 text-cyan-400" /> 住户信息
+              </h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 rounded-lg bg-slate-800/30">
+                  <div className="text-[10px] text-slate-500 mb-0.5">姓名</div>
+                  <div className="text-sm text-white font-medium">{selectedTenant.name}</div>
+                </div>
+                <div className="p-3 rounded-lg bg-slate-800/30">
+                  <div className="text-[10px] text-slate-500 mb-0.5">家庭人口</div>
+                  <div className="text-sm text-white font-medium">{selectedTenant.familyMembers}人</div>
+                </div>
+                <div className="p-3 rounded-lg bg-slate-800/30">
+                  <div className="text-[10px] text-slate-500 mb-0.5">当前月收入</div>
+                  <div className="text-sm text-amber-300 font-mono">¥{selectedTenant.monthlyIncome.toLocaleString()}</div>
+                </div>
+                <div className="p-3 rounded-lg bg-slate-800/30">
+                  <div className="text-[10px] text-slate-500 mb-0.5">联系电话</div>
+                  <div className="text-sm text-cyan-300 font-mono">{selectedTenant.phone}</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="glass-panel p-5">
+              <h4 className="text-sm font-bold text-slate-300 mb-3 flex items-center gap-2">
+                <DollarSign className="w-4 h-4 text-amber-400" /> 补贴调整方案
+              </h4>
+              <div className="grid grid-cols-3 gap-3 mb-3">
+                <div className="p-3 rounded-lg bg-slate-800/30 text-center">
+                  <div className="text-[10px] text-slate-500 mb-1">原月租金</div>
+                  <div className="text-lg font-bold text-white font-mono">
+                    ¥{selectedHouse?.monthlyRent || '-'}
+                  </div>
+                </div>
+                <div className="p-3 rounded-lg bg-slate-800/30 text-center">
+                  <div className="text-[10px] text-slate-500 mb-1">原补贴比例</div>
+                  <div className="text-lg font-bold text-slate-300 font-mono">
+                    {selectedTenant.subsidyRatio ? (selectedTenant.subsidyRatio * 100).toFixed(0) + '%' : '-'}
+                  </div>
+                </div>
+                <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-center">
+                  <div className="text-[10px] text-amber-400 mb-1">建议调整比例</div>
+                  <div className="text-lg font-bold text-amber-300 font-mono">
+                    {selectedApproval.subsidyRatio ? (selectedApproval.subsidyRatio * 100).toFixed(0) + '%' : '-'}
+                  </div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 rounded-lg bg-slate-800/30">
+                  <div className="text-[10px] text-slate-500 mb-1">申请补贴金额</div>
+                  <div className="text-sm text-cyan-300 font-mono font-bold">¥{selectedApproval.applyAmount}/月</div>
+                </div>
+                <div className="p-3 rounded-lg bg-slate-800/30">
+                  <div className="text-[10px] text-slate-500 mb-1">调整后实缴</div>
+                  <div className="text-sm text-emerald-300 font-mono font-bold">
+                    ¥{selectedHouse ? Math.max(0, selectedHouse.monthlyRent - selectedApproval.applyAmount) : '-'}/月
+                  </div>
+                </div>
+              </div>
+              <div className="mt-3 p-3 rounded-lg bg-blue-500/5 border border-blue-500/15">
+                <div className="text-xs text-blue-300">
+                  收入变化：月收入 ¥{selectedTenant.monthlyIncome.toLocaleString()}，
+                  {selectedTenant.monthlyIncome < 5000 ? '低于保障线，建议提高补贴比例' :
+                   selectedTenant.monthlyIncome < 8000 ? '接近保障线，建议维持或微调补贴比例' :
+                   '超过保障线，建议降低补贴比例'}
+                </div>
+              </div>
+            </div>
+
+            <div className="glass-panel p-5">
+              <h4 className="text-sm font-bold text-slate-300 mb-3 flex items-center gap-2">
+                <ArrowRight className="w-4 h-4 text-purple-400" /> 审批流程
+              </h4>
+              <div className="space-y-3">
+                {getStageProgress(selectedApproval).map(({ stage, label, state }, idx) => (
+                  <div key={stage} className="flex items-start gap-3">
+                    <div className="flex flex-col items-center">
+                      <div className={cn(
+                        'w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold',
+                        state === 'done' ? 'bg-emerald-500 text-white' :
+                        state === 'current' ? 'bg-amber-500 text-white ring-2 ring-amber-400/30' :
+                        'bg-slate-700 text-slate-500'
+                      )}>
+                        {state === 'done' ? <CheckCircle2 className="w-4 h-4" /> : idx + 1}
+                      </div>
+                      {idx < 2 && <div className={cn('w-0.5 h-8', state === 'done' ? 'bg-emerald-500' : 'bg-slate-700')} />}
+                    </div>
+                    <div className="flex-1 pt-1">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className={cn('text-sm font-medium', state === 'current' ? 'text-amber-300' : state === 'done' ? 'text-emerald-300' : 'text-slate-500')}>
+                          {label}
+                        </span>
+                        {state === 'done' && (
+                          <span className="text-[10px] text-emerald-400">
+                            {stage === 'street' ? selectedApproval.streetApproveTime :
+                             stage === 'district' ? selectedApproval.districtApproveTime :
+                             selectedApproval.cityApproveTime ? new Date(selectedApproval.cityApproveTime).toLocaleDateString('zh-CN') : ''}
+                          </span>
+                        )}
+                      </div>
+                      {state !== 'pending' && (
+                        <div className="text-xs text-slate-400">
+                          <span className="text-slate-500">
+                            {stage === 'street' ? selectedApproval.streetApprover :
+                             stage === 'district' ? selectedApproval.districtApprover :
+                             selectedApproval.cityApprover || '-'}
+                          </span>
+                          {(stage === 'street' ? selectedApproval.streetOpinion :
+                            stage === 'district' ? selectedApproval.districtOpinion :
+                            selectedApproval.cityOpinion) && (
+                            <span className="ml-2">
+                              {(stage === 'street' ? selectedApproval.streetOpinion :
+                                stage === 'district' ? selectedApproval.districtOpinion :
+                                selectedApproval.cityOpinion)}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {selectedApproval.status === 'pending' && (
+              <div className="glass-panel p-5">
+                <h4 className="text-sm font-bold text-slate-300 mb-3">审批操作</h4>
+                <div className="mb-3 text-xs text-slate-400">
+                  当前环节：<span className="text-amber-300 font-medium">{stageLabels[selectedApproval.currentStage]}</span>
+                </div>
+                <textarea
+                  value={opinionText}
+                  onChange={e => setOpinionText(e.target.value)}
+                  placeholder={rejectMode ? '请输入驳回原因（必填）' : '审批意见（选填）'}
+                  className="w-full h-20 px-3 py-2 rounded-lg bg-slate-800/50 border border-slate-700/30 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-amber-400/40 resize-none"
+                />
+                <div className="flex gap-3 mt-3">
+                  <button
+                    onClick={handleApprove}
+                    className="flex-1 py-2.5 rounded-lg text-sm font-medium bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+                  >
+                    <CheckCircle2 className="w-4 h-4" /> 通过并流转
+                  </button>
+                  <button
+                    onClick={() => setRejectMode(true)}
+                    className={cn(
+                      'px-5 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2',
+                      rejectMode
+                        ? 'bg-red-500 text-white'
+                        : 'bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20'
+                    )}
+                  >
+                    <XCircle className="w-4 h-4" /> 驳回
+                  </button>
+                </div>
+                {rejectMode && opinionText.trim() && (
+                  <button
+                    onClick={handleReject}
+                    className="w-full mt-2 py-2.5 rounded-lg text-sm font-medium bg-red-500 text-white hover:bg-red-600 transition-colors"
+                  >
+                    确认驳回
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="h-full flex items-center justify-center">
+            <div className="text-center">
+              <FileCheck2 className="w-16 h-16 text-amber-400/20 mx-auto mb-4" />
+              <p className="text-slate-500">请从左侧选择一条审批申请</p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
 function OperationLogs() {
+  const { logs, getLogs } = useOperationLogStore();
+  const { currentUser, hasPermission } = useUserStore();
+  const [actionFilter, setActionFilter] = useState<string>('all');
+  const [operatorFilter, setOperatorFilter] = useState<string>('all');
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
+
+  const canFilter = hasPermission('district_director');
+
+  const actionLabels: Record<string, { label: string; icon: typeof ScanFace; color: string }> = {
+    face_login: { label: '人脸识别登录', icon: ScanFace, color: 'text-cyan-400' },
+    role_switch: { label: '角色切换', icon: Users, color: 'text-purple-400' },
+    approval_approve: { label: '审批通过', icon: CheckCircle2, color: 'text-emerald-400' },
+    approval_reject: { label: '审批驳回', icon: XCircle, color: 'text-red-400' },
+    warning_ack: { label: '预警处置', icon: AlertTriangle, color: 'text-amber-400' },
+    report_export: { label: '报表导出', icon: Download, color: 'text-blue-400' },
+    repair_assign: { label: '维修派单', icon: Wrench, color: 'text-teal-400' },
+    repair_escalate: { label: '维修升级', icon: ArrowUpRight, color: 'text-orange-400' }
+  };
+
+  const operators = useMemo(() => {
+    const map = new Map<string, { name: string; role: string }>();
+    logs.forEach(l => {
+      if (!map.has(l.operatorId)) {
+        map.set(l.operatorId, { name: l.operatorName, role: l.operatorRole });
+      }
+    });
+    return Array.from(map.entries());
+  }, [logs]);
+
+  const filteredLogs = useMemo(() => {
+    return getLogs({
+      action: actionFilter !== 'all' ? actionFilter as any : undefined,
+      operatorId: operatorFilter !== 'all' ? operatorFilter : undefined,
+      startTime: startTime || undefined,
+      endTime: endTime || undefined
+    }).sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+  }, [getLogs, actionFilter, operatorFilter, startTime, endTime]);
+
+  const roleLabels: Record<string, string> = {
+    tenant: '租户', property: '物业', staff: '街道专干',
+    district_director: '区分局长', city_director: '市住建局长'
+  };
+
   return (
-    <div className="w-full h-full p-8 flex items-center justify-center">
-      <div className="text-center">
-        <ListChecks className="w-20 h-20 text-slate-400 mx-auto mb-6 opacity-30" />
-        <h2 className="text-2xl font-bold text-white mb-2">操作日志</h2>
-        <p className="text-slate-400">全系统操作审计追踪 · 可追溯可查询</p>
+    <div className="w-full h-full bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-6 overflow-y-auto scrollbar-thin">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+            <ListChecks className="w-7 h-7 text-slate-400" />
+            操作日志
+          </h2>
+          <p className="text-sm text-slate-400 mt-1 ml-10">全系统操作审计追踪 · 可追溯可查询</p>
+        </div>
+        <div className="text-xs text-slate-500">
+          共 <span className="text-cyan-300 font-bold">{filteredLogs.length}</span> 条记录
+        </div>
+      </div>
+
+      <div className="glass-panel p-4 mb-4">
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2">
+            <Filter className="w-4 h-4 text-slate-500" />
+            <span className="text-xs text-slate-400">筛选:</span>
+          </div>
+          <select
+            value={actionFilter}
+            onChange={e => setActionFilter(e.target.value)}
+            className="px-3 py-1.5 rounded-lg bg-slate-800/50 border border-slate-700/30 text-sm text-slate-300 focus:outline-none focus:border-cyan-400/40"
+          >
+            <option value="all">全部操作</option>
+            {Object.entries(actionLabels).map(([key, val]) => (
+              <option key={key} value={key}>{val.label}</option>
+            ))}
+          </select>
+          {canFilter && (
+            <select
+              value={operatorFilter}
+              onChange={e => setOperatorFilter(e.target.value)}
+              className="px-3 py-1.5 rounded-lg bg-slate-800/50 border border-slate-700/30 text-sm text-slate-300 focus:outline-none focus:border-cyan-400/40"
+            >
+              <option value="all">全部人员</option>
+              {operators.map(([id, info]) => (
+                <option key={id} value={id}>{info.name} ({roleLabels[info.role] || info.role})</option>
+              ))}
+            </select>
+          )}
+          {canFilter && (
+            <>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-slate-500">从</span>
+                <input
+                  type="date"
+                  value={startTime}
+                  onChange={e => setStartTime(e.target.value)}
+                  className="px-2 py-1.5 rounded-lg bg-slate-800/50 border border-slate-700/30 text-xs text-slate-300 focus:outline-none focus:border-cyan-400/40"
+                />
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-slate-500">至</span>
+                <input
+                  type="date"
+                  value={endTime}
+                  onChange={e => setEndTime(e.target.value)}
+                  className="px-2 py-1.5 rounded-lg bg-slate-800/50 border border-slate-700/30 text-xs text-slate-300 focus:outline-none focus:border-cyan-400/40"
+                />
+              </div>
+            </>
+          )}
+          {(actionFilter !== 'all' || operatorFilter !== 'all' || startTime || endTime) && (
+            <button
+              onClick={() => { setActionFilter('all'); setOperatorFilter('all'); setStartTime(''); setEndTime(''); }}
+              className="px-3 py-1.5 rounded-lg text-xs bg-slate-700/50 text-slate-400 hover:text-white transition-colors"
+            >
+              重置
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        {filteredLogs.map((log, idx) => {
+          const actionInfo = actionLabels[log.action];
+          const Icon = actionInfo?.icon || Activity;
+          return (
+            <motion.div
+              key={log.id}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: Math.min(idx * 0.02, 0.5) }}
+              className="glass-panel p-4 flex items-center gap-4 hover:bg-slate-800/30 transition-colors"
+            >
+              <div className={cn(
+                'w-10 h-10 rounded-xl flex items-center justify-center shrink-0',
+                'bg-slate-800/50 border border-slate-700/30'
+              )}>
+                <Icon className={cn('w-5 h-5', actionInfo?.color || 'text-slate-400')} />
+              </div>
+
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className="text-sm font-medium text-white">{actionInfo?.label || log.action}</span>
+                  <span className={cn(
+                    'px-2 py-0.5 rounded text-[10px]',
+                    log.result.includes('成功') || log.result.includes('通过') || log.result.includes('已')
+                      ? 'bg-emerald-500/15 text-emerald-400'
+                      : log.result.includes('驳回')
+                        ? 'bg-red-500/15 text-red-400'
+                        : 'bg-slate-500/15 text-slate-400'
+                  )}>
+                    {log.result}
+                  </span>
+                </div>
+                <div className="text-xs text-slate-400 truncate">{log.detail}</div>
+              </div>
+
+              <div className="text-right shrink-0">
+                <div className="text-xs text-white font-medium">{log.operatorName}</div>
+                <div className="text-[10px] text-slate-500">{roleLabels[log.operatorRole] || log.operatorRole}</div>
+              </div>
+
+              <div className="text-right shrink-0 min-w-[120px]">
+                <div className="text-xs text-slate-400 font-mono">
+                  {new Date(log.timestamp).toLocaleDateString('zh-CN')}
+                </div>
+                <div className="text-[10px] text-slate-500 font-mono">
+                  {new Date(log.timestamp).toLocaleTimeString('zh-CN')}
+                </div>
+              </div>
+            </motion.div>
+          );
+        })}
       </div>
     </div>
   );
@@ -858,6 +1569,11 @@ export default function Home() {
 
   const selectedHouse = selectedHouseId ? getHouseById(selectedHouseId) : null;
 
+  const handleNavigateToHouse = useCallback((houseId: string) => {
+    setActiveMenu('overview');
+    setTimeout(() => selectHouse(houseId), 100);
+  }, [selectHouse]);
+
   const renderMainContent = () => {
     switch (activeMenu) {
       case 'lottery':
@@ -869,7 +1585,7 @@ export default function Home() {
       case 'energy':
         return <EnergyManagement />;
       case 'warning':
-        return <WarningCenter />;
+        return <WarningCenter onNavigateToHouse={handleNavigateToHouse} />;
       case 'approval':
         return <ApprovalCenter />;
       case 'logs':

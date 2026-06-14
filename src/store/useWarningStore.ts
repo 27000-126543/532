@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { Warning, WarningType, House, AccessRecord } from '@/types';
 import houses from '@/data/houses';
 import accessRecords from '@/data/accessRecords';
+import tenants from '@/data/tenants';
 
 interface WarningState {
   warnings: Warning[];
@@ -46,7 +47,7 @@ function detectVacantWarnings(houseList: House[], records: AccessRecord[]): Warn
         buildingId: house.buildingId,
         buildingName: house.buildingName,
         roomNumber: house.roomNumber,
-        tenantName: house.tenantId ? houseList.find((h) => h.tenantId === house.tenantId)?.tenantId : undefined,
+        tenantName: house.tenantId ? tenants.find(t => t.id === house.tenantId)?.name : undefined,
         description: `该房屋已连续${daysWithoutAccess}天无住户进出记录，疑似空置`,
         detectedAt: now.toISOString(),
         acknowledged: false,
@@ -91,7 +92,7 @@ function detectSubletWarnings(houseList: House[], records: AccessRecord[]): Warn
         buildingId: house.buildingId,
         buildingName: house.buildingName,
         roomNumber: house.roomNumber,
-        tenantName: house.tenantId ? houseList.find((h) => h.tenantId === house.tenantId)?.tenantId : undefined,
+        tenantName: house.tenantId ? tenants.find(t => t.id === house.tenantId)?.name : undefined,
         description: `该房屋30天内有${nonTenantAccessCount}次非住户刷脸记录，涉及${nonTenantNames.length}个不同人员，疑似转租`,
         detectedAt: now.toISOString(),
         acknowledged: false,
