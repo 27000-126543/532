@@ -1063,15 +1063,28 @@ function ApprovalCenter() {
   const { tenants, getTenantById, getHouseById } = useHouseStore();
   const { currentUser } = useUserStore();
   const addLog = useOperationLogStore(s => s.addLog);
+  const [filterMode, setFilterMode] = useState<'all' | 'pending' | 'highrisk'>('all');
   const [statusFilter, setStatusFilter] = useState<ApprovalStatus | 'all'>('all');
   const [selectedApprovalId, setSelectedApprovalId] = useState<string | null>(null);
   const [opinionText, setOpinionText] = useState('');
   const [rejectMode, setRejectMode] = useState(false);
 
+  const highRiskCount = useMemo(
+    () => approvals.filter(a => a.isHighRisk && a.status === 'pending').length,
+    [approvals]
+  );
+
   const filteredApprovals = useMemo(() => {
-    if (statusFilter === 'all') return approvals;
-    return approvals.filter(a => a.status === statusFilter);
-  }, [approvals, statusFilter]);
+    let list = approvals;
+    if (filterMode === 'pending') {
+      list = list.filter(a => a.status === 'pending');
+    } else if (filterMode === 'highrisk') {
+      list = list.filter(a => a.isHighRisk && a.status === 'pending');
+    } else if (statusFilter !== 'all') {
+      list = list.filter(a => a.status === statusFilter);
+    }
+    return list;
+  }, [approvals, filterMode, statusFilter]);
 
   const selectedApproval = useMemo(
     () => approvals.find(a => a.id === selectedApprovalId),
@@ -1151,25 +1164,46 @@ function ApprovalCenter() {
             <FileCheck2 className="w-6 h-6 text-amber-400" />
             审批中心
           </h2>
-          <div className="flex gap-1.5">
-            {(['all', 'pending', 'approved', 'rejected', 'completed'] as const).map(s => (
+          <div className="flex gap-1.5 mb-2">
+            {(['all', 'pending', 'highrisk'] as const).map(s => (
               <button
                 key={s}
-                onClick={() => setStatusFilter(s)}
+                onClick={() => { setFilterMode(s); setStatusFilter('all'); }}
                 className={cn(
-                  'px-3 py-1.5 rounded-lg text-xs transition-all',
-                  statusFilter === s
-                    ? 'bg-amber-500/20 border border-amber-400/30 text-amber-300'
+                  'px-3 py-1.5 rounded-lg text-xs transition-all flex-1',
+                  filterMode === s
+                    ? s === 'highrisk'
+                      ? 'bg-red-500/20 border border-red-400/30 text-red-300'
+                      : 'bg-amber-500/20 border border-amber-400/30 text-amber-300'
                     : 'bg-slate-800/30 border border-slate-700/30 text-slate-400 hover:text-white'
                 )}
               >
                 {s === 'all' ? `全部(${approvals.length})` :
                  s === 'pending' ? `待审(${getPendingCount()})` :
-                 s === 'completed' ? `完成(${getCompletedCount()})` :
-                 s === 'rejected' ? `驳回(${getRejectedCount()})` : `通过(${approvals.filter(a => a.status === 'approved').length})`}
+                 `高风险(${highRiskCount})`}
               </button>
             ))}
           </div>
+          {filterMode === 'all' && (
+            <div className="flex gap-1.5">
+              {(['approved', 'rejected', 'completed'] as const).map(s => (
+                <button
+                  key={s}
+                  onClick={() => setStatusFilter(s)}
+                  className={cn(
+                    'px-2 py-1 rounded text-[10px] transition-all flex-1',
+                    statusFilter === s
+                      ? 'bg-slate-700/40 text-white border border-slate-600/30'
+                      : 'text-slate-500 hover:text-slate-300'
+                  )}
+                >
+                  {s === 'approved' ? `通过(${approvals.filter(a => a.status === 'approved').length})` :
+                   s === 'rejected' ? `驳回(${getRejectedCount()})` :
+                   `完成(${getCompletedCount()})`}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto scrollbar-thin p-3 space-y-2">
@@ -1182,11 +1216,18 @@ function ApprovalCenter() {
                 'w-full p-3 rounded-xl text-left transition-all',
                 selectedApprovalId === a.id
                   ? 'bg-amber-500/10 border border-amber-400/30'
-                  : 'bg-slate-800/20 border border-slate-700/20 hover:bg-slate-800/40'
+                  : a.isHighRisk && a.status === 'pending'
+                    ? 'bg-red-900/10 border border-red-500/20 hover:bg-red-900/20'
+                    : 'bg-slate-800/20 border border-slate-700/20 hover:bg-slate-800/40'
               )}
             >
               <div className="flex items-center justify-between mb-1">
-                <span className="text-sm font-bold text-white">{a.tenantName}</span>
+                <span className="text-sm font-bold text-white flex items-center gap-1.5">
+                  {a.tenantName}
+                  {a.isHighRisk && a.status === 'pending' && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                  )}
+                </span>
                 {getStatusBadge(a.status)}
               </div>
               <div className="text-xs text-slate-400 flex items-center gap-2">
@@ -1194,14 +1235,31 @@ function ApprovalCenter() {
                 <span>·</span>
                 <span>{a.applyType}</span>
               </div>
-              <div className="text-xs text-slate-500 mt-1 flex items-center gap-2">
+              <div className="text-xs text-slate-500 mt-1 flex items-center gap-2 flex-wrap">
                 <span>当前: {stageLabels[a.currentStage]}</span>
                 <span>·</span>
-                <span>申请金额: ¥{a.applyAmount}</span>
-                {!a.hasHistoryBasis && (
-                  <span className="px-1.5 py-0.5 rounded text-[9px] bg-red-500/15 text-red-400">无历史依据</span>
+                <span>补贴: {a.subsidyRatio != null ? `${(a.subsidyRatio * 100).toFixed(0)}%` : '-'}</span>
+                {a.originalIncome != null && a.incomeChangePercent != null && (
+                  <>
+                    <span>·</span>
+                    <span className={cn(
+                      'font-mono',
+                      a.incomeChangePercent > 0 ? 'text-red-400' : 'text-emerald-400'
+                    )}>
+                      {a.incomeChangePercent > 0 ? '↑' : '↓'}{Math.abs(a.incomeChangePercent).toFixed(1)}%
+                    </span>
+                  </>
                 )}
               </div>
+              {(a.highRiskReasons?.length || 0) > 0 && a.status === 'pending' && (
+                <div className="mt-1.5 flex gap-1 flex-wrap">
+                  {a.highRiskReasons?.map((reason, idx) => (
+                    <span key={idx} className="px-1.5 py-0.5 rounded text-[9px] bg-red-500/15 text-red-400 border border-red-500/20">
+                      {reason}
+                    </span>
+                  ))}
+                </div>
+              )}
             </motion.button>
           ))}
         </div>
@@ -1329,11 +1387,36 @@ function ApprovalCenter() {
                 </div>
               </div>
 
-              {!selectedApproval.hasHistoryBasis && (
-                <div className="mb-3 p-3 rounded-lg bg-red-500/5 border border-red-500/20">
-                  <div className="text-xs text-red-400 font-medium mb-1">⚠ 审批风险提示</div>
-                  <div className="text-xs text-slate-400">
-                    该申请缺少历史收入申报记录作为对比依据，无法判断收入变化趋势。建议要求住户补充收入证明材料后再行审批。
+              {!selectedApproval.hasHistoryBasis && selectedApproval.missingHistoryInfo && (
+                <div className="mb-3 p-4 rounded-xl bg-red-500/5 border border-red-500/20">
+                  <div className="text-xs text-red-400 font-medium mb-2 flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5" /> 历史资料缺失详情
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-start gap-2">
+                      <span className="text-[10px] text-red-300/70 w-20 shrink-0">缺失材料</span>
+                      <div className="flex gap-1.5 flex-wrap">
+                        {selectedApproval.missingHistoryInfo.missingItems.map((item, idx) => (
+                          <span key={idx} className="px-2 py-0.5 rounded text-[10px] bg-red-500/10 text-red-300 border border-red-500/20">
+                            {item}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="text-[10px] text-red-300/70 w-20 shrink-0">缺失时段</span>
+                      <span className="text-xs text-slate-300">{selectedApproval.missingHistoryInfo.missingPeriod}</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="text-[10px] text-red-300/70 w-20 shrink-0">影响判断</span>
+                      <div className="flex gap-1.5 flex-wrap">
+                        {selectedApproval.missingHistoryInfo.impactItems.map((item, idx) => (
+                          <span key={idx} className="px-2 py-0.5 rounded text-[10px] bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                            {item}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
@@ -1353,14 +1436,34 @@ function ApprovalCenter() {
 
             <div className="glass-panel p-5">
               <h4 className="text-sm font-bold text-slate-300 mb-3 flex items-center gap-2">
-                <Layers className="w-4 h-4 text-purple-400" /> 历史调整记录
+                <Clock className="w-4 h-4 text-purple-400" /> 历史调整时间线
+                {(() => {
+                  const tenantApprovals = approvals.filter(
+                    a => a.tenantId === selectedApproval.tenantId && a.id !== selectedApproval.id
+                  ).sort((a, b) => b.applyDate.localeCompare(a.applyDate));
+                  if (tenantApprovals.length < 2) return null;
+                  const changes = tenantApprovals.slice(0, 3).map(a => a.incomeChangePercent || 0);
+                  const allUp = changes.every(c => c > 0);
+                  const allDown = changes.every(c => c < 0);
+                  const trend = allUp ? 'up' : allDown ? 'down' : 'mixed';
+                  return (
+                    <span className={cn(
+                      'ml-2 px-2 py-0.5 rounded-full text-[10px]',
+                      trend === 'up' ? 'bg-red-500/15 text-red-400 border border-red-500/30' :
+                      trend === 'down' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' :
+                      'bg-slate-500/15 text-slate-400 border border-slate-500/30'
+                    )}>
+                      {trend === 'up' ? '↑ 持续上调趋势' : trend === 'down' ? '↓ 持续下调趋势' : '⟷ 波动调整'}
+                    </span>
+                  );
+                })()}
               </h4>
               {(() => {
-                const tenantApprovals = approvals.filter(
-                  a => a.tenantId === selectedApproval.tenantId && a.id !== selectedApproval.id
-                ).sort((a, b) => b.applyDate.localeCompare(a.applyDate));
+                const allTenantApprovals = approvals
+                  .filter(a => a.tenantId === selectedApproval.tenantId)
+                  .sort((a, b) => b.applyDate.localeCompare(a.applyDate));
                 
-                if (tenantApprovals.length === 0) {
+                if (allTenantApprovals.length === 0) {
                   return (
                     <div className="p-4 rounded-lg bg-slate-800/20 text-center">
                       <div className="text-xs text-slate-500">暂无历史调整记录</div>
@@ -1369,39 +1472,146 @@ function ApprovalCenter() {
                 }
 
                 return (
-                  <div className="space-y-2">
-                    {tenantApprovals.slice(0, 5).map(past => (
-                      <div key={past.id} className="p-3 rounded-lg bg-slate-800/20 border border-slate-700/10">
-                        <div className="flex items-center justify-between mb-1.5">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-slate-500 font-mono">{past.applyDate}</span>
-                            <span className="text-xs text-slate-400">{past.applyType}</span>
-                          </div>
-                          <span className={cn(
-                            'px-1.5 py-0.5 rounded text-[10px]',
-                            past.status === 'completed' ? 'bg-emerald-500/15 text-emerald-400' :
-                            past.status === 'rejected' ? 'bg-red-500/15 text-red-400' :
-                            'bg-amber-500/15 text-amber-400'
-                          )}>
-                            {past.status === 'completed' ? '已完成' : past.status === 'rejected' ? '已驳回' : '审批中'}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-4 text-xs">
-                          <span className="text-slate-400">
-                            补贴: {past.previousSubsidyRatio != null ? `${(past.previousSubsidyRatio * 100).toFixed(0)}%` : '-'}
-                            → {past.subsidyRatio != null ? `${(past.subsidyRatio * 100).toFixed(0)}%` : '-'}
-                          </span>
-                          <span className="text-slate-400">
-                            金额: ¥{past.applyAmount}/月
-                          </span>
-                          {past.originalIncome != null && (
-                            <span className="text-slate-500">
-                              收入: ¥{past.originalIncome.toLocaleString()} → ¥{(past.currentIncome || 0).toLocaleString()}
-                            </span>
+                  <div className="relative">
+                    {allTenantApprovals.map((past, idx) => {
+                      const isCurrent = past.id === selectedApproval.id;
+                      const prevApproval = allTenantApprovals[idx + 1];
+                      
+                      const subsidyDiff = prevApproval && past.previousSubsidyRatio != null && prevApproval.subsidyRatio != null
+                        ? (past.previousSubsidyRatio - prevApproval.subsidyRatio) * 100
+                        : null;
+                      
+                      const incomeDiff = prevApproval && past.originalIncome != null && prevApproval.currentIncome != null
+                        ? past.originalIncome - prevApproval.currentIncome
+                        : null;
+
+                      return (
+                        <div key={past.id} className="relative flex gap-4 pb-5 last:pb-0">
+                          {idx < allTenantApprovals.length - 1 && (
+                            <div className={cn(
+                              'absolute left-4 top-10 w-0.5 h-full',
+                              isCurrent ? 'bg-amber-500/50' : 'bg-slate-700/50'
+                            )} />
                           )}
+                          
+                          <div className={cn(
+                            'w-8 h-8 rounded-full flex items-center justify-center shrink-0 z-10',
+                            isCurrent
+                              ? 'bg-amber-500 text-white ring-2 ring-amber-400/30'
+                              : past.status === 'completed'
+                                ? 'bg-emerald-500/80 text-white'
+                                : past.status === 'rejected'
+                                  ? 'bg-red-500/80 text-white'
+                                  : 'bg-slate-600 text-slate-300'
+                          )}>
+                            {past.status === 'completed' ? <CheckCircle2 className="w-4 h-4" /> :
+                             past.status === 'rejected' ? <XCircle className="w-4 h-4" /> :
+                             past.status === 'pending' ? <Clock className="w-4 h-4" /> :
+                             <FileText className="w-4 h-4" />}
+                          </div>
+                          
+                          <div className={cn(
+                            'flex-1 p-3 rounded-lg border',
+                            isCurrent
+                              ? 'bg-amber-500/5 border-amber-500/20'
+                              : 'bg-slate-800/20 border-slate-700/20'
+                          )}>
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <span className={cn(
+                                  'text-xs font-medium',
+                                  isCurrent ? 'text-amber-300' : 'text-white'
+                                )}>
+                                  {past.applyDate}
+                                  {isCurrent && <span className="ml-2 text-[10px] text-amber-400">[本次申请]</span>}
+                                </span>
+                              </div>
+                              <span className={cn(
+                                'px-1.5 py-0.5 rounded text-[10px]',
+                                past.status === 'completed' ? 'bg-emerald-500/15 text-emerald-400' :
+                                past.status === 'rejected' ? 'bg-red-500/15 text-red-400' :
+                                past.status === 'pending' ? 'bg-amber-500/15 text-amber-400' :
+                                'bg-slate-500/15 text-slate-400'
+                              )}>
+                                {past.status === 'completed' ? '已完成' :
+                                 past.status === 'rejected' ? '已驳回' :
+                                 past.status === 'pending' ? '审批中' : '已通过'}
+                              </span>
+                            </div>
+                            
+                            <div className="grid grid-cols-3 gap-2 text-xs mb-2">
+                              <div>
+                                <span className="text-[10px] text-slate-500">补贴比例</span>
+                                <div className="flex items-center gap-1 mt-0.5">
+                                  <span className="text-slate-300 font-mono">
+                                    {past.previousSubsidyRatio != null
+                                      ? `${(past.previousSubsidyRatio * 100).toFixed(0)}%` : '-'}
+                                  </span>
+                                  <span className="text-slate-600">→</span>
+                                  <span className="text-emerald-300 font-mono font-medium">
+                                    {past.subsidyRatio != null
+                                      ? `${(past.subsidyRatio * 100).toFixed(0)}%` : '-'}
+                                  </span>
+                                  {subsidyDiff != null && Math.abs(subsidyDiff) > 0.5 && (
+                                    <span className={cn(
+                                      'text-[10px] font-mono',
+                                      subsidyDiff > 0 ? 'text-emerald-400' : 'text-red-400'
+                                    )}>
+                                      ({subsidyDiff > 0 ? '+' : ''}{subsidyDiff.toFixed(0)}pp)
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <div>
+                                <span className="text-[10px] text-slate-500">月收入</span>
+                                <div className="flex items-center gap-1 mt-0.5">
+                                  <span className="text-slate-300 font-mono text-[11px]">
+                                    {past.originalIncome != null
+                                      ? `¥${(past.originalIncome / 1000).toFixed(1)}k` : '-'}
+                                  </span>
+                                  <span className="text-slate-600">→</span>
+                                  <span className="text-amber-300 font-mono text-[11px] font-medium">
+                                    {past.currentIncome != null
+                                      ? `¥${(past.currentIncome / 1000).toFixed(1)}k` : '-'}
+                                  </span>
+                                  {incomeDiff != null && incomeDiff !== 0 && (
+                                    <span className={cn(
+                                      'text-[10px] font-mono',
+                                      incomeDiff > 0 ? 'text-red-400' : 'text-emerald-400'
+                                    )}>
+                                      ({incomeDiff > 0 ? '↑' : '↓'}{Math.abs(incomeDiff / 1000).toFixed(1)}k)
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <div>
+                                <span className="text-[10px] text-slate-500">实缴租金</span>
+                                <div className="text-slate-300 font-mono mt-0.5">
+                                  {past.suggestedRent != null
+                                    ? `¥${past.suggestedRent}/月` : '-'}
+                                  {past.rentChangeAmount != null && past.rentChangeAmount !== 0 && (
+                                    <span className={cn(
+                                      'ml-1 text-[10px]',
+                                      past.rentChangeAmount < 0 ? 'text-emerald-400' : 'text-red-400'
+                                    )}>
+                                      ({past.rentChangeAmount < 0 ? '减' : '增'}¥{Math.abs(past.rentChangeAmount)})
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {past.streetApprover && (
+                              <div className="text-[10px] text-slate-500 flex items-center gap-1">
+                                <Users className="w-3 h-3" />
+                                经办人: {past.streetApprover}
+                                {past.streetOpinion && ` · ${past.streetOpinion.slice(0, 10)}`}
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 );
               })()}

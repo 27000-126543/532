@@ -102,6 +102,13 @@ export interface RepairOrder {
 
 export type ApprovalStage = 'street' | 'district' | 'city';
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'completed';
+export type IncomeTrend = 'up' | 'down' | 'stable' | 'unknown';
+
+export interface MissingHistoryInfo {
+  missingItems: string[];
+  missingPeriod: string;
+  impactItems: string[];
+}
 
 export interface Approval {
   id: string;
@@ -117,9 +124,15 @@ export interface Approval {
   previousSubsidyRatio?: number;
   originalIncome?: number;
   currentIncome?: number;
+  incomeChangePercent?: number;
+  incomeTrend?: IncomeTrend;
   previousRent?: number;
   suggestedRent?: number;
+  rentChangeAmount?: number;
   hasHistoryBasis?: boolean;
+  missingHistoryInfo?: MissingHistoryInfo;
+  isHighRisk?: boolean;
+  highRiskReasons?: string[];
   currentStage: ApprovalStage;
   status: ApprovalStatus;
   applyDate: string;
@@ -133,6 +146,8 @@ export interface Approval {
   cityApproveTime?: string;
   cityOpinion?: string;
   remark?: string;
+  submitter?: string;
+  submitTime?: string;
 }
 
 export interface EnergyMonth {
