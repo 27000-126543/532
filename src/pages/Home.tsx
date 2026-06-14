@@ -466,6 +466,17 @@ function HouseDetailPanel({ house, onClose }: { house: House; onClose: () => voi
                       w.level === 'high' ? 'bg-red-500' : w.level === 'medium' ? 'bg-amber-500' : 'bg-yellow-500'
                     )} />
                     <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className={cn(
+                          'text-[10px] px-1.5 py-0.5 rounded',
+                          w.type === 'vacant' ? 'bg-amber-500/20 text-amber-300' : 'bg-red-500/20 text-red-300'
+                        )}>
+                          {w.type === 'vacant' ? '空置预警' : '转租预警'}
+                        </span>
+                        <span className="text-[10px] text-slate-500">
+                          {w.tenantName && `住户: ${w.tenantName}`}
+                        </span>
+                      </div>
                       <div className="text-xs text-white line-clamp-2">{w.description}</div>
                       <div className="text-[10px] text-slate-500 mt-1">
                         {new Date(w.detectedAt).toLocaleDateString('zh-CN')}
