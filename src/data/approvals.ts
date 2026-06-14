@@ -28,6 +28,14 @@ for (let i = 0; i < 10; i++) {
   
   const applyDate = new Date(2026, 4, 1 + (i * 3) % 28);
   
+  const originalIncome = tenant.monthlyIncome;
+  const incomeChange = (i % 5 === 0) ? 0 : Math.round(originalIncome * (0.7 + (i * 0.07) % 0.5));
+  const currentIncome = incomeChange > 0 ? incomeChange : originalIncome;
+  const previousSubsidyRatio = Math.round((subsidyRatio - 0.05 + (i % 3) * 0.02) * 100) / 100;
+  const previousRent = house.monthlyRent;
+  const suggestedRent = Math.max(0, Math.round(previousRent * (1 - subsidyRatio)));
+  const hasHistoryBasis = i % 5 !== 0;
+
   const approval: Approval = {
     id: `AP${String(i + 1).padStart(5, '0')}`,
     tenantId: tenant.id,
@@ -39,6 +47,12 @@ for (let i = 0; i < 10; i++) {
     applyAmount,
     approvedAmount,
     subsidyRatio: Math.round(subsidyRatio * 100) / 100,
+    previousSubsidyRatio: Math.max(0.05, previousSubsidyRatio),
+    originalIncome: hasHistoryBasis ? incomeChange : undefined,
+    currentIncome,
+    previousRent,
+    suggestedRent,
+    hasHistoryBasis,
     currentStage,
     status,
     applyDate: applyDate.toISOString().split('T')[0]

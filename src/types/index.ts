@@ -114,6 +114,12 @@ export interface Approval {
   applyAmount: number;
   approvedAmount?: number;
   subsidyRatio?: number;
+  previousSubsidyRatio?: number;
+  originalIncome?: number;
+  currentIncome?: number;
+  previousRent?: number;
+  suggestedRent?: number;
+  hasHistoryBasis?: boolean;
   currentStage: ApprovalStage;
   status: ApprovalStatus;
   applyDate: string;

@@ -234,15 +234,12 @@ const useOperationLogStore = create<OperationLogState>((set, get) => ({
       if (filter.action && log.action !== filter.action) return false;
       if (filter.operatorId && log.operatorId !== filter.operatorId) return false;
 
-      if (filter.startTime) {
-        const startDate = new Date(filter.startTime + 'T00:00:00.000Z');
+      if (filter.startTime || filter.endTime) {
         const logDate = new Date(log.timestamp);
-        if (logDate < startDate) return false;
-      }
-      if (filter.endTime) {
-        const endDate = new Date(filter.endTime + 'T23:59:59.999Z');
-        const logDate = new Date(log.timestamp);
-        if (logDate > endDate) return false;
+        const logLocalDate = `${logDate.getFullYear()}-${String(logDate.getMonth() + 1).padStart(2, '0')}-${String(logDate.getDate()).padStart(2, '0')}`;
+
+        if (filter.startTime && logLocalDate < filter.startTime) return false;
+        if (filter.endTime && logLocalDate > filter.endTime) return false;
       }
       return true;
     });

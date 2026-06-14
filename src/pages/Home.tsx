@@ -1198,6 +1198,9 @@ function ApprovalCenter() {
                 <span>当前: {stageLabels[a.currentStage]}</span>
                 <span>·</span>
                 <span>申请金额: ¥{a.applyAmount}</span>
+                {!a.hasHistoryBasis && (
+                  <span className="px-1.5 py-0.5 rounded text-[9px] bg-red-500/15 text-red-400">无历史依据</span>
+                )}
               </div>
             </motion.button>
           ))}
@@ -1241,90 +1244,167 @@ function ApprovalCenter() {
             <div className="glass-panel p-5">
               <h4 className="text-sm font-bold text-slate-300 mb-3 flex items-center gap-2">
                 <DollarSign className="w-4 h-4 text-amber-400" /> 补贴调整方案
+                {!selectedApproval.hasHistoryBasis && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] bg-red-500/15 text-red-400 border border-red-500/30 ml-2 animate-pulse">
+                    ⚠ 无历史依据
+                  </span>
+                )}
               </h4>
 
               <div className="mb-4 p-4 rounded-xl bg-gradient-to-r from-slate-800/50 to-amber-900/10 border border-amber-500/20">
                 <div className="text-[10px] text-amber-400 mb-3 font-medium flex items-center gap-1">
-                  <TrendingUp className="w-3 h-3" /> 收入变化详情
+                  <TrendingUp className="w-3 h-3" /> 收入与补贴对比
                 </div>
-                <div className="grid grid-cols-4 gap-3">
-                  <div className="text-center">
+                <div className="grid grid-cols-5 gap-2">
+                  <div className="text-center p-2 rounded-lg bg-slate-800/40">
                     <div className="text-[10px] text-slate-500 mb-1">原申报月收入</div>
-                    <div className="text-base font-bold text-white font-mono">
-                      ¥{Math.round(selectedTenant.monthlyIncome * 0.85).toLocaleString()}
+                    <div className="text-sm font-bold text-white font-mono">
+                      {selectedApproval.originalIncome != null
+                        ? `¥${selectedApproval.originalIncome.toLocaleString()}`
+                        : <span className="text-red-400/70 text-xs">暂无历史依据</span>}
                     </div>
                   </div>
-                  <div className="text-center">
-                    <div className="text-[10px] text-slate-500 mb-1">当前核实月收入</div>
-                    <div className="text-base font-bold text-amber-300 font-mono">
-                      ¥{selectedTenant.monthlyIncome.toLocaleString()}
+                  <div className="text-center p-2 rounded-lg bg-amber-500/10 border border-amber-500/15">
+                    <div className="text-[10px] text-amber-400 mb-1">当前核验收入</div>
+                    <div className="text-sm font-bold text-amber-300 font-mono">
+                      ¥{(selectedApproval.currentIncome || selectedTenant.monthlyIncome).toLocaleString()}
                     </div>
                   </div>
-                  <div className="text-center">
-                    <div className="text-[10px] text-slate-500 mb-1">收入增减幅度</div>
-                    <div className={cn(
-                      'text-base font-bold font-mono flex items-center justify-center gap-1',
-                      selectedTenant.monthlyIncome > selectedTenant.monthlyIncome * 0.85 ? 'text-red-400' : 'text-emerald-400'
-                    )}>
-                      {selectedTenant.monthlyIncome > selectedTenant.monthlyIncome * 0.85 ? (
-                        <TrendingUp className="w-4 h-4" />
-                      ) : (
-                        <TrendingDown className="w-4 h-4" />
-                      )}
-                      {(((selectedTenant.monthlyIncome - selectedTenant.monthlyIncome * 0.85) / (selectedTenant.monthlyIncome * 0.85)) * 100).toFixed(1)}%
+                  <div className="text-center p-2 rounded-lg bg-slate-800/40">
+                    <div className="text-[10px] text-slate-500 mb-1">收入增减</div>
+                    {selectedApproval.originalIncome != null ? (
+                      <div className={cn(
+                        'text-sm font-bold font-mono flex items-center justify-center gap-1',
+                        selectedApproval.currentIncome > selectedApproval.originalIncome ? 'text-red-400' : 'text-emerald-400'
+                      )}>
+                        {selectedApproval.currentIncome > selectedApproval.originalIncome ? (
+                          <TrendingUp className="w-3 h-3" />
+                        ) : (
+                          <TrendingDown className="w-3 h-3" />
+                        )}
+                        {(((selectedApproval.currentIncome - selectedApproval.originalIncome) / selectedApproval.originalIncome) * 100).toFixed(1)}%
+                      </div>
+                    ) : (
+                      <div className="text-sm font-bold text-red-400/70">-</div>
+                    )}
+                  </div>
+                  <div className="text-center p-2 rounded-lg bg-slate-800/40">
+                    <div className="text-[10px] text-slate-500 mb-1">原补贴比例</div>
+                    <div className="text-sm font-bold text-slate-300 font-mono">
+                      {selectedApproval.previousSubsidyRatio != null
+                        ? `${(selectedApproval.previousSubsidyRatio * 100).toFixed(0)}%`
+                        : <span className="text-red-400/70 text-xs">无记录</span>}
                     </div>
                   </div>
-                  <div className="text-center">
-                    <div className="text-[10px] text-slate-500 mb-1">调整依据</div>
-                    <div className="text-[11px] text-slate-300 mt-0.5">
-                      {selectedTenant.monthlyIncome < 5000 ? '低于保障线' :
-                       selectedTenant.monthlyIncome < 8000 ? '接近保障线' :
-                       '超保障线'}
+                  <div className="text-center p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/15">
+                    <div className="text-[10px] text-emerald-400 mb-1">建议调整比例</div>
+                    <div className="text-sm font-bold text-emerald-300 font-mono">
+                      {selectedApproval.subsidyRatio != null
+                        ? `${(selectedApproval.subsidyRatio * 100).toFixed(0)}%`
+                        : '-'}
+                    </div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-2 mt-2">
+                  <div className="text-center p-2 rounded-lg bg-slate-800/40">
+                    <div className="text-[10px] text-slate-500 mb-1">原实缴租金</div>
+                    <div className="text-sm font-bold text-white font-mono">
+                      ¥{(selectedApproval.previousRent || selectedHouse?.monthlyRent || 0).toLocaleString()}/月
+                    </div>
+                  </div>
+                  <div className="text-center p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/15">
+                    <div className="text-[10px] text-cyan-400 mb-1">申请补贴金额</div>
+                    <div className="text-sm font-bold text-cyan-300 font-mono">¥{selectedApproval.applyAmount}/月</div>
+                  </div>
+                  <div className="text-center p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/15">
+                    <div className="text-[10px] text-emerald-400 mb-1">调整后实缴</div>
+                    <div className="text-sm font-bold text-emerald-300 font-mono">
+                      ¥{(selectedApproval.suggestedRent != null
+                        ? selectedApproval.suggestedRent
+                        : selectedHouse
+                          ? Math.max(0, selectedHouse.monthlyRent - selectedApproval.applyAmount)
+                          : 0).toLocaleString()}/月
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3 mb-3">
-                <div className="p-3 rounded-lg bg-slate-800/30 text-center">
-                  <div className="text-[10px] text-slate-500 mb-1">原月租金</div>
-                  <div className="text-lg font-bold text-white font-mono">
-                    ¥{selectedHouse?.monthlyRent || '-'}
+              {!selectedApproval.hasHistoryBasis && (
+                <div className="mb-3 p-3 rounded-lg bg-red-500/5 border border-red-500/20">
+                  <div className="text-xs text-red-400 font-medium mb-1">⚠ 审批风险提示</div>
+                  <div className="text-xs text-slate-400">
+                    该申请缺少历史收入申报记录作为对比依据，无法判断收入变化趋势。建议要求住户补充收入证明材料后再行审批。
                   </div>
                 </div>
-                <div className="p-3 rounded-lg bg-slate-800/30 text-center">
-                  <div className="text-[10px] text-slate-500 mb-1">原补贴比例</div>
-                  <div className="text-lg font-bold text-slate-300 font-mono">
-                    {selectedTenant.subsidyRatio ? (selectedTenant.subsidyRatio * 100).toFixed(0) + '%' : '-'}
-                  </div>
-                </div>
-                <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-center">
-                  <div className="text-[10px] text-amber-400 mb-1">建议调整比例</div>
-                  <div className="text-lg font-bold text-amber-300 font-mono">
-                    {selectedApproval.subsidyRatio ? (selectedApproval.subsidyRatio * 100).toFixed(0) + '%' : '-'}
-                  </div>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="p-3 rounded-lg bg-slate-800/30">
-                  <div className="text-[10px] text-slate-500 mb-1">申请补贴金额</div>
-                  <div className="text-sm text-cyan-300 font-mono font-bold">¥{selectedApproval.applyAmount}/月</div>
-                </div>
-                <div className="p-3 rounded-lg bg-slate-800/30">
-                  <div className="text-[10px] text-slate-500 mb-1">调整后实缴</div>
-                  <div className="text-sm text-emerald-300 font-mono font-bold">
-                    ¥{selectedHouse ? Math.max(0, selectedHouse.monthlyRent - selectedApproval.applyAmount) : '-'}/月
-                  </div>
-                </div>
-              </div>
-              <div className="mt-3 p-3 rounded-lg bg-blue-500/5 border border-blue-500/15">
+              )}
+
+              <div className="p-3 rounded-lg bg-blue-500/5 border border-blue-500/15">
                 <div className="text-xs text-blue-300">
-                  收入变化：月收入 ¥{selectedTenant.monthlyIncome.toLocaleString()}，
-                  {selectedTenant.monthlyIncome < 5000 ? '低于保障线，建议提高补贴比例' :
-                   selectedTenant.monthlyIncome < 8000 ? '接近保障线，建议维持或微调补贴比例' :
+                  调整依据：当前核验月收入 ¥{(selectedApproval.currentIncome || selectedTenant.monthlyIncome).toLocaleString()}，
+                  {selectedApproval.hasHistoryBasis && selectedApproval.originalIncome != null
+                    ? `较原申报 ¥${selectedApproval.originalIncome.toLocaleString()} ${selectedApproval.currentIncome > selectedApproval.originalIncome ? '增长' : '减少'} ${Math.abs(((selectedApproval.currentIncome - selectedApproval.originalIncome) / selectedApproval.originalIncome) * 100).toFixed(1)}%，`
+                    : '暂无历史收入对比数据，'}
+                  {(selectedApproval.currentIncome || selectedTenant.monthlyIncome) < 5000 ? '低于保障线，建议提高补贴比例' :
+                   (selectedApproval.currentIncome || selectedTenant.monthlyIncome) < 8000 ? '接近保障线，建议维持或微调补贴比例' :
                    '超过保障线，建议降低补贴比例'}
                 </div>
               </div>
+            </div>
+
+            <div className="glass-panel p-5">
+              <h4 className="text-sm font-bold text-slate-300 mb-3 flex items-center gap-2">
+                <Layers className="w-4 h-4 text-purple-400" /> 历史调整记录
+              </h4>
+              {(() => {
+                const tenantApprovals = approvals.filter(
+                  a => a.tenantId === selectedApproval.tenantId && a.id !== selectedApproval.id
+                ).sort((a, b) => b.applyDate.localeCompare(a.applyDate));
+                
+                if (tenantApprovals.length === 0) {
+                  return (
+                    <div className="p-4 rounded-lg bg-slate-800/20 text-center">
+                      <div className="text-xs text-slate-500">暂无历史调整记录</div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="space-y-2">
+                    {tenantApprovals.slice(0, 5).map(past => (
+                      <div key={past.id} className="p-3 rounded-lg bg-slate-800/20 border border-slate-700/10">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-slate-500 font-mono">{past.applyDate}</span>
+                            <span className="text-xs text-slate-400">{past.applyType}</span>
+                          </div>
+                          <span className={cn(
+                            'px-1.5 py-0.5 rounded text-[10px]',
+                            past.status === 'completed' ? 'bg-emerald-500/15 text-emerald-400' :
+                            past.status === 'rejected' ? 'bg-red-500/15 text-red-400' :
+                            'bg-amber-500/15 text-amber-400'
+                          )}>
+                            {past.status === 'completed' ? '已完成' : past.status === 'rejected' ? '已驳回' : '审批中'}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-4 text-xs">
+                          <span className="text-slate-400">
+                            补贴: {past.previousSubsidyRatio != null ? `${(past.previousSubsidyRatio * 100).toFixed(0)}%` : '-'}
+                            → {past.subsidyRatio != null ? `${(past.subsidyRatio * 100).toFixed(0)}%` : '-'}
+                          </span>
+                          <span className="text-slate-400">
+                            金额: ¥{past.applyAmount}/月
+                          </span>
+                          {past.originalIncome != null && (
+                            <span className="text-slate-500">
+                              收入: ¥{past.originalIncome.toLocaleString()} → ¥{(past.currentIncome || 0).toLocaleString()}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
 
             <div className="glass-panel p-5">
@@ -1444,6 +1524,7 @@ function OperationLogs() {
   const [operatorFilter, setOperatorFilter] = useState<string>('all');
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
+  const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
 
   const canFilter = hasPermission('district_director');
 
@@ -1477,14 +1558,53 @@ function OperationLogs() {
     }).sort((a, b) => b.timestamp.localeCompare(a.timestamp));
   }, [getLogs, actionFilter, operatorFilter, startTime, endTime]);
 
+  const last7DaysStats = useMemo(() => {
+    const now = new Date();
+    const sevenDaysAgo = new Date(now);
+    sevenDaysAgo.setDate(now.getDate() - 7);
+    sevenDaysAgo.setHours(0, 0, 0, 0);
+
+    const recentLogs = logs.filter(l => new Date(l.timestamp) >= sevenDaysAgo);
+    const actionCounts: Record<string, number> = {};
+    const operatorCounts: Record<string, { name: string; count: number }> = {};
+
+    recentLogs.forEach(l => {
+      actionCounts[l.action] = (actionCounts[l.action] || 0) + 1;
+      if (!operatorCounts[l.operatorId]) {
+        operatorCounts[l.operatorId] = { name: l.operatorName, count: 0 };
+      }
+      operatorCounts[l.operatorId].count++;
+    });
+
+    return { total: recentLogs.length, actionCounts, operatorCounts };
+  }, [logs]);
+
   const roleLabels: Record<string, string> = {
     tenant: '租户', property: '物业', staff: '街道专干',
     district_director: '区分局长', city_director: '市住建局长'
   };
 
+  const getRelatedInfo = (log: typeof logs[0]) => {
+    if (!log.targetId) return null;
+    switch (log.action) {
+      case 'approval_approve':
+      case 'approval_reject':
+        return { type: '审批', id: log.targetId, name: log.targetName || '审批记录' };
+      case 'warning_ack':
+        return { type: '预警', id: log.targetId, name: log.targetName || '预警记录' };
+      case 'repair_assign':
+      case 'repair_escalate':
+        return { type: '工单', id: log.targetId, name: log.targetName || '维修工单' };
+      case 'report_export':
+        return { type: '报表', id: '', name: log.detail };
+      default:
+        return null;
+    }
+  };
+
   return (
     <div className="w-full h-full bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-6 overflow-y-auto scrollbar-thin">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="text-2xl font-bold text-white flex items-center gap-3">
             <ListChecks className="w-7 h-7 text-slate-400" />
@@ -1494,6 +1614,41 @@ function OperationLogs() {
         </div>
         <div className="text-xs text-slate-500">
           共 <span className="text-cyan-300 font-bold">{filteredLogs.length}</span> 条记录
+        </div>
+      </div>
+
+      <div className="glass-panel p-4 mb-4">
+        <div className="text-xs text-slate-400 mb-3 font-medium">近7天操作统计</div>
+        <div className="grid grid-cols-5 gap-3 mb-3">
+          {[
+            { label: '审批通过', count: last7DaysStats.actionCounts['approval_approve'] || 0, icon: CheckCircle2, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+            { label: '审批驳回', count: last7DaysStats.actionCounts['approval_reject'] || 0, icon: XCircle, color: 'text-red-400', bg: 'bg-red-500/10' },
+            { label: '角色切换', count: last7DaysStats.actionCounts['role_switch'] || 0, icon: Users, color: 'text-purple-400', bg: 'bg-purple-500/10' },
+            { label: '报表导出', count: last7DaysStats.actionCounts['report_export'] || 0, icon: Download, color: 'text-blue-400', bg: 'bg-blue-500/10' },
+            { label: '总操作', count: last7DaysStats.total, icon: Activity, color: 'text-cyan-400', bg: 'bg-cyan-500/10' }
+          ].map(stat => {
+            const Icon = stat.icon;
+            return (
+              <div key={stat.label} className={cn('p-3 rounded-lg', stat.bg)}>
+                <div className="flex items-center gap-2 mb-1">
+                  <Icon className={cn('w-4 h-4', stat.color)} />
+                  <span className="text-[10px] text-slate-400">{stat.label}</span>
+                </div>
+                <div className={cn('text-xl font-bold font-mono', stat.color)}>{stat.count}</div>
+              </div>
+            );
+          })}
+        </div>
+        <div className="text-[10px] text-slate-500 mb-2">按人员分布</div>
+        <div className="flex gap-2 flex-wrap">
+          {Object.entries(last7DaysStats.operatorCounts)
+            .sort(([, a], [, b]) => b.count - a.count)
+            .map(([id, info]) => (
+              <span key={id} className="px-2 py-1 rounded-lg bg-slate-800/40 border border-slate-700/20 text-[10px]">
+                <span className="text-slate-300">{info.name}</span>
+                <span className="text-cyan-400 ml-1 font-mono">{info.count}次</span>
+              </span>
+            ))}
         </div>
       </div>
 
@@ -1562,51 +1717,117 @@ function OperationLogs() {
         {filteredLogs.map((log, idx) => {
           const actionInfo = actionLabels[log.action];
           const Icon = actionInfo?.icon || Activity;
+          const isExpanded = expandedLogId === log.id;
+          const relatedInfo = getRelatedInfo(log);
           return (
             <motion.div
               key={log.id}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: Math.min(idx * 0.02, 0.5) }}
-              className="glass-panel p-4 flex items-center gap-4 hover:bg-slate-800/30 transition-colors"
             >
-              <div className={cn(
-                'w-10 h-10 rounded-xl flex items-center justify-center shrink-0',
-                'bg-slate-800/50 border border-slate-700/30'
-              )}>
-                <Icon className={cn('w-5 h-5', actionInfo?.color || 'text-slate-400')} />
+              <div
+                className={cn(
+                  'glass-panel p-4 flex items-center gap-4 transition-colors cursor-pointer',
+                  isExpanded ? 'bg-slate-800/40' : 'hover:bg-slate-800/20'
+                )}
+                onClick={() => setExpandedLogId(isExpanded ? null : log.id)}
+              >
+                <div className={cn(
+                  'w-10 h-10 rounded-xl flex items-center justify-center shrink-0',
+                  'bg-slate-800/50 border border-slate-700/30'
+                )}>
+                  <Icon className={cn('w-5 h-5', actionInfo?.color || 'text-slate-400')} />
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span className="text-sm font-medium text-white">{actionInfo?.label || log.action}</span>
+                    <span className={cn(
+                      'px-2 py-0.5 rounded text-[10px]',
+                      log.result.includes('成功') || log.result.includes('通过') || log.result.includes('已')
+                        ? 'bg-emerald-500/15 text-emerald-400'
+                        : log.result.includes('驳回')
+                          ? 'bg-red-500/15 text-red-400'
+                          : 'bg-slate-500/15 text-slate-400'
+                    )}>
+                      {log.result}
+                    </span>
+                    {log.targetId && (
+                      <span className="px-1.5 py-0.5 rounded text-[9px] bg-slate-700/50 text-slate-500">
+                        {relatedInfo?.type}: {log.targetId}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-xs text-slate-400 truncate">{log.detail}</div>
+                </div>
+
+                <div className="text-right shrink-0">
+                  <div className="text-xs text-white font-medium">{log.operatorName}</div>
+                  <div className="text-[10px] text-slate-500">{roleLabels[log.operatorRole] || log.operatorRole}</div>
+                </div>
+
+                <div className="text-right shrink-0 min-w-[120px]">
+                  <div className="text-xs text-slate-400 font-mono">
+                    {new Date(log.timestamp).toLocaleDateString('zh-CN')}
+                  </div>
+                  <div className="text-[10px] text-slate-500 font-mono">
+                    {new Date(log.timestamp).toLocaleTimeString('zh-CN')}
+                  </div>
+                </div>
+
+                <ChevronDown className={cn(
+                  'w-4 h-4 text-slate-500 transition-transform shrink-0',
+                  isExpanded && 'rotate-180'
+                )} />
               </div>
 
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-0.5">
-                  <span className="text-sm font-medium text-white">{actionInfo?.label || log.action}</span>
-                  <span className={cn(
-                    'px-2 py-0.5 rounded text-[10px]',
-                    log.result.includes('成功') || log.result.includes('通过') || log.result.includes('已')
-                      ? 'bg-emerald-500/15 text-emerald-400'
-                      : log.result.includes('驳回')
-                        ? 'bg-red-500/15 text-red-400'
-                        : 'bg-slate-500/15 text-slate-400'
-                  )}>
-                    {log.result}
-                  </span>
-                </div>
-                <div className="text-xs text-slate-400 truncate">{log.detail}</div>
-              </div>
-
-              <div className="text-right shrink-0">
-                <div className="text-xs text-white font-medium">{log.operatorName}</div>
-                <div className="text-[10px] text-slate-500">{roleLabels[log.operatorRole] || log.operatorRole}</div>
-              </div>
-
-              <div className="text-right shrink-0 min-w-[120px]">
-                <div className="text-xs text-slate-400 font-mono">
-                  {new Date(log.timestamp).toLocaleDateString('zh-CN')}
-                </div>
-                <div className="text-[10px] text-slate-500 font-mono">
-                  {new Date(log.timestamp).toLocaleTimeString('zh-CN')}
-                </div>
-              </div>
+              <AnimatePresence>
+                {isExpanded && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="px-4 py-3 ml-14 border-l-2 border-slate-700/30 bg-slate-900/30 rounded-b-lg">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <div className="text-[10px] text-slate-500 mb-0.5">操作人</div>
+                          <div className="text-xs text-white">{log.operatorName} ({roleLabels[log.operatorRole] || log.operatorRole})</div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] text-slate-500 mb-0.5">操作时间</div>
+                          <div className="text-xs text-white font-mono">{new Date(log.timestamp).toLocaleString('zh-CN')}</div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] text-slate-500 mb-0.5">操作结果</div>
+                          <div className="text-xs text-white">{log.result}</div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] text-slate-500 mb-0.5">详细描述</div>
+                          <div className="text-xs text-slate-300">{log.detail}</div>
+                        </div>
+                      </div>
+                      {relatedInfo && (
+                        <div className="mt-3 p-2.5 rounded-lg bg-slate-800/30 border border-slate-700/20">
+                          <div className="text-[10px] text-cyan-400 mb-1">关联对象</div>
+                          <div className="flex items-center gap-3">
+                            <span className="px-2 py-0.5 rounded text-xs bg-cyan-500/10 text-cyan-300 border border-cyan-500/20">
+                              {relatedInfo.type}
+                            </span>
+                            {relatedInfo.id && (
+                              <span className="text-xs text-slate-400 font-mono">编号: {relatedInfo.id}</span>
+                            )}
+                            <span className="text-xs text-slate-300">{relatedInfo.name}</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </motion.div>
           );
         })}
